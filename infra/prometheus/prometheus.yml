@@ -1,0 +1,14 @@
+# Prometheus base configuration for local development (S01)
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Future jobs for services will be added in later segments (S02+)
+
