@@ -1,0 +1,35 @@
+# Global
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+.cache/
+.tmp/
+tmp/
+logs/
+coverage/
+dist/
+build/
+out/
+node_modules/
+venv/
+.venv/
+.python-version
+.pytest_cache/
+.idea/
+.vscode/
+*.iml
+target/
+bin/
+pkg/
+.nyc_output/
+.next/
+.terraform/
+terraform.tfstate*
+
+# OS/Editor
+~$*
+*.swp
+*.swo
+*.orig
