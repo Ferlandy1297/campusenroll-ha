@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: notification
+
+server:
+  port: ${SERVER_PORT:8085}
+
+management:
+  endpoints:
+    enabled-by-default: false
