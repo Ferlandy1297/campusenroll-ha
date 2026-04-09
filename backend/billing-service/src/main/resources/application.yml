@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: billing-service
+  datasource:
+    url: ${BILLING_SERVICE_DATASOURCE_URL:jdbc:postgresql://localhost:5432/campusenroll}
+    username: ${BILLING_SERVICE_DATASOURCE_USERNAME:campus}
+    password: ${BILLING_SERVICE_DATASOURCE_PASSWORD:campus_password}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+server:
+  port: ${SERVER_PORT:8084}
+
+management:
+  endpoints:
+    enabled-by-default: false
