@@ -1,20 +1,54 @@
-notification (S00)
+# notification
 
-Scope
-- Sends notifications in response to domain events; supports multiple channels (TBD).
+Initial Spring Boot scaffold for the CampusEnroll HA `notification` service.
 
-Out of Scope (S00)
-- No implementation, endpoints, or DB schema yet.
-- No auth, content templates, or Compose files.
+## Segment Scope
 
-Data Ownership
-- Minimal persistence (TBD) if outbox/retry patterns are adopted.
+This segment includes only:
+- application bootstrap
+- package structure
+- basic configuration placeholder
+- one health endpoint at `GET /health`
 
-Integration
-- Consumes events from RabbitMQ; may emit NotificationSent (TBD schema).
-- Redis optional for rate limiting or dedupe (TBD).
+This segment does not include:
+- notification entities
+- channel logic
+- email, SMS, or push sending logic
+- event consumers
+- retry logic
+- authentication or authorization
+- messaging implementation
+- Docker Compose changes
 
-TODO (next segments)
-- Choose stack and framework.
-- Define event contracts and delivery policies.
-- Observability metrics and dashboards.
+## Stack
+
+- Java 17
+- Spring Boot
+- Maven
+- Spring Web
+- Spring Boot Actuator
+- Spring Validation
+
+## Run Locally
+
+```bash
+mvn spring-boot:run
+```
+
+Default placeholders:
+- Port: `8085`
+
+Override with:
+- `SERVER_PORT`
+
+## Test
+
+```bash
+mvn test
+```
+
+## Next Segments
+
+- add notification domain model
+- define event contracts and delivery policies
+- add channel adapters and retry handling
