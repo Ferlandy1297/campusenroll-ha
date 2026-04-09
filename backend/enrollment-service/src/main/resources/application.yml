@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: enrollment-service
+  datasource:
+    url: ${ENROLLMENT_SERVICE_DATASOURCE_URL:jdbc:postgresql://localhost:5432/campusenroll}
+    username: ${ENROLLMENT_SERVICE_DATASOURCE_USERNAME:campus}
+    password: ${ENROLLMENT_SERVICE_DATASOURCE_PASSWORD:campus_password}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+
+server:
+  port: ${SERVER_PORT:8083}
+
+management:
+  endpoints:
+    enabled-by-default: false
