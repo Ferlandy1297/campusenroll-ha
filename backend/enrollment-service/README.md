@@ -1,21 +1,59 @@
-enrollment-service (S00)
+# enrollment-service
 
-Scope
-- Owns student-to-course enrollment records and statuses.
-- Publishes enrollment lifecycle events (schemas TBD).
+Initial Spring Boot scaffold for the CampusEnroll HA `enrollment-service`.
 
-Out of Scope (S00)
-- No implementation, endpoints, or DB schema yet.
-- No auth, business rules, or Compose files.
+## Segment Scope
 
-Data Ownership
-- PostgreSQL schema: enrollments.* (TBD)
+This segment includes only:
+- application bootstrap
+- package structure
+- basic configuration placeholder
+- one health endpoint at `GET /health`
 
-Integration
-- RabbitMQ for events (TBD exchanges/queues).
-- Redis optional for transient coordination.
+This segment does not include:
+- enrollment entities or statuses beyond the service scaffold
+- enrollment validation rules
+- seat, duplicate-enrollment, or schedule-overlap checks
+- billing compensation
+- authentication or authorization
+- messaging or Docker Compose changes
 
-TODO (next segments)
-- Choose stack and framework.
-- Define REST surface and event contracts.
-- Migrations and seed strategy.
+## Stack
+
+- Java 17
+- Spring Boot
+- Maven
+- Spring Web
+- Spring Boot Actuator
+- Spring Validation
+- Spring Data JPA
+- PostgreSQL driver
+
+## Run Locally
+
+```bash
+mvn spring-boot:run
+```
+
+Default placeholders:
+- Port: `8083`
+- Database URL: `jdbc:postgresql://localhost:5432/campusenroll`
+- Database user: `campus`
+
+Override with:
+- `SERVER_PORT`
+- `ENROLLMENT_SERVICE_DATASOURCE_URL`
+- `ENROLLMENT_SERVICE_DATASOURCE_USERNAME`
+- `ENROLLMENT_SERVICE_DATASOURCE_PASSWORD`
+
+## Test
+
+```bash
+mvn test
+```
+
+## Next Segments
+
+- add enrollment domain model
+- add persistence and migrations
+- define service contracts and events
