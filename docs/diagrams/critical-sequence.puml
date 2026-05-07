@@ -1,0 +1,73 @@
+@startuml
+title Caso critico - Inscripcion de estudiante a una seccion y generacion de cobro asociado
+
+autonumber
+skinparam shadowing false
+
+actor "Usuario / Postman" as user
+participant "API Gateway\n(pendiente)" as gateway
+participant "enrollment-service" as enrollment
+participant "course-service\n(validacion planificada)" as course
+participant "student-service\n(validacion planificada)" as student
+participant "billing-service" as billing
+database "PostgreSQL" as pg
+queue "RabbitMQ\n(planificado)" as mq
+participant "notification\n(planificado)" as notification
+
+note over gateway
+La coleccion Postman actual no utiliza gateway.
+El acceso real hoy es directo a cada servicio.
+end note
+
+group Implementado actualmente
+user -> enrollment : POST /api/enrollments {studentId, sectionId}
+note right of enrollment
+El servicio valida duplicidad de inscripcion activa.
+No realiza hoy validacion remota contra
+student-service ni course-service.
+end note
+enrollment -> pg : INSERT enrollment
+pg --> enrollment : enrollment_id
+enrollment --> user : 201 Created
+
+user -> billing : POST /api/billings {enrollmentId, amount, currency, status=PENDING}
+note right of billing
+El cobro asociado hoy requiere una segunda llamada
+manual/directa.
+El servicio valida duplicidad de cobro pendiente.
+end note
+billing -> pg : INSERT billing
+pg --> billing : billing_id
+billing --> user : 201 Created
+
+note over student,course
+Estos servicios no participan en la secuencia implementada actual.
+end note
+
+note over mq,notification
+Todavia no se publican eventos ni se consumen notificaciones.
+end note
+end
+
+== Flujo planeado para entrega final ==
+user -> gateway : Solicitud unificada de inscripcion
+gateway -> enrollment : POST /api/enrollments
+enrollment -> student : Validar existencia y estado del estudiante
+student --> enrollment : OK / rechazo
+enrollment -> course : Validar seccion, horario y disponibilidad
+course --> enrollment : OK / rechazo
+enrollment -> pg : Confirmar inscripcion
+enrollment -> mq : Publish EnrollmentCreated
+mq -> billing : Consume EnrollmentCreated
+billing -> pg : Crear cobro PENDING
+billing -> mq : Publish BillingCreated
+mq -> notification : Consume BillingCreated o NotificationRequested
+notification --> mq : ACK
+gateway --> user : Respuesta o tracking del proceso
+
+note over enrollment,billing
+La coordinacion distribuida, la idempotencia
+y la compensacion por fallas siguen planificadas.
+end note
+
+@enduml

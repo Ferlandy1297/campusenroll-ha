@@ -1,0 +1,97 @@
+@startuml
+title CampusEnroll HA - Diagrama de componentes
+
+left to right direction
+skinparam shadowing false
+skinparam componentStyle rectangle
+
+rectangle "Postman collection\ncliente actual" as postman #D5F5E3
+component "API Gateway\npendiente" as gateway #FADBD8
+database "PostgreSQL" as pg #D5F5E3
+
+node "Docker Compose local" as compose #FCF3CF {
+  component "Redis" as redis #FCF3CF
+  queue "RabbitMQ" as mq #FCF3CF
+  component "Prometheus" as prom #FCF3CF
+  component "Grafana" as grafana #FCF3CF
+}
+
+package "student-service" {
+  [REST controllers] as st_ctrl
+  [Student service] as st_svc
+  [Student repository] as st_repo
+  st_ctrl --> st_svc
+  st_svc --> st_repo
+}
+
+package "course-service" {
+  [REST controllers] as co_ctrl
+  [Catalog services] as co_svc
+  [Catalog repositories] as co_repo
+  co_ctrl --> co_svc
+  co_svc --> co_repo
+}
+
+package "enrollment-service" {
+  [REST controllers] as en_ctrl
+  [Enrollment service] as en_svc
+  [Enrollment repository] as en_repo
+  en_ctrl --> en_svc
+  en_svc --> en_repo
+}
+
+package "billing-service" {
+  [REST controllers] as bi_ctrl
+  [Billing service] as bi_svc
+  [Billing repository] as bi_repo
+  bi_ctrl --> bi_svc
+  bi_svc --> bi_repo
+}
+
+package "notification" {
+  [Health controller] as no_health
+  [Notification consumer\nplanificado] as no_consumer #FADBD8
+}
+
+postman --> st_ctrl
+postman --> co_ctrl
+postman --> en_ctrl
+postman --> bi_ctrl
+postman --> no_health
+
+gateway ..> st_ctrl : futuro
+gateway ..> co_ctrl : futuro
+gateway ..> en_ctrl : futuro
+gateway ..> bi_ctrl : futuro
+gateway ..> no_health : futuro
+
+st_repo --> pg
+co_repo --> pg
+en_repo --> pg
+bi_repo --> pg
+
+co_svc ..> redis : cache futura
+en_svc ..> redis : disponibilidad futura
+
+en_svc ..> mq : eventos planificados
+bi_svc ..> mq : eventos planificados
+mq ..> no_consumer : consumo planificado
+
+prom --> prom : scrape actual
+prom ..> st_ctrl : scrape planeado
+prom ..> co_ctrl : scrape planeado
+prom ..> en_ctrl : scrape planeado
+prom ..> bi_ctrl : scrape planeado
+prom ..> no_health : scrape planeado
+grafana --> prom
+
+note bottom of no_health
+El servicio notification hoy solo expone health check.
+end note
+
+note bottom of prom
+La infraestructura de observabilidad existe,
+pero el scraping de servicios de negocio sigue pendiente.
+end note
+
+@enduml

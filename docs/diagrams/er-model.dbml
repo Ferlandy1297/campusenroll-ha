@@ -1,0 +1,113 @@
+Project CampusEnrollHA {
+  database_type: "PostgreSQL"
+  Note: "Modelo DBML alineado con db/schema.sql para la revision tecnica."
+}
+
+Table students {
+  id bigint [pk, increment]
+  student_code varchar(50) [not null, unique]
+  first_name varchar(100) [not null]
+  last_name varchar(100) [not null]
+  email varchar(255)
+  active boolean [not null]
+
+  Note: "Checks en schema.sql: student_code, first_name y last_name no vacios y trim; email opcional pero no vacio si existe."
+
+  Indexes {
+    (active) [name: "idx_students_active"]
+  }
+}
+
+Table courses {
+  id bigint [pk, increment]
+  course_code varchar(30) [not null, unique]
+  name varchar(120) [not null]
+  credits integer [not null]
+  active boolean [not null]
+
+  Note: "Check: credits >= 0. En schema.sql existe un indice unico case-insensitive sobre lower(course_code)."
+
+  Indexes {
+    (active) [name: "idx_courses_active"]
+  }
+}
+
+Table academic_periods {
+  id bigint [pk, increment]
+  name varchar(120) [not null]
+  active boolean [not null]
+
+  Note: "Checks de nombre no vacio y trim."
+
+  Indexes {
+    (active) [name: "idx_academic_periods_active"]
+  }
+}
+
+Table sections {
+  id bigint [pk, increment]
+  section_code varchar(30) [not null]
+  capacity integer [not null]
+  active boolean [not null]
+  course_id bigint [not null, ref: > courses.id]
+  academic_period_id bigint [not null, ref: > academic_periods.id]
+
+  Note: "Check: capacity > 0."
+
+  Indexes {
+    (academic_period_id, section_code) [unique, name: "uq_sections_period_section_code"]
+    (course_id) [name: "idx_sections_course_id"]
+    (academic_period_id) [name: "idx_sections_academic_period_id"]
+    (active) [name: "idx_sections_active"]
+  }
+}
+
+Table schedule_blocks {
+  id bigint [pk, increment]
+  section_id bigint [not null, ref: > sections.id]
+  block_order integer [not null]
+  day_of_week varchar(16) [not null]
+  start_time time [not null]
+  end_time time [not null]
+
+  Note: "Checks: block_order >= 0, day_of_week controlado y end_time > start_time."
+
+  Indexes {
+    (section_id, block_order) [unique, name: "uq_schedule_blocks_section_order"]
+    (section_id) [name: "idx_schedule_blocks_section_id"]
+  }
+}
+
+Table enrollments {
+  id bigint [pk, increment]
+  student_id bigint [not null, ref: > students.id]
+  section_id bigint [not null, ref: > sections.id]
+  status varchar(20) [not null]
+  enrolled_at timestamptz [not null]
+
+  Note: "Check: status in ENROLLED/CANCELLED. En schema.sql existe el indice unico parcial uq_enrollments_active_student_section para impedir duplicado activo por student_id + section_id."
+
+  Indexes {
+    (student_id) [name: "idx_enrollments_student_id"]
+    (section_id) [name: "idx_enrollments_section_id"]
+    (status) [name: "idx_enrollments_status"]
+    (enrolled_at) [name: "idx_enrollments_enrolled_at"]
+  }
+}
+
+Table billings {
+  id bigint [pk, increment]
+  enrollment_id bigint [not null, ref: > enrollments.id]
+  amount numeric(12,2) [not null]
+  currency varchar(10) [not null]
+  status varchar(20) [not null]
+  created_at timestamptz [not null]
+
+  Note: "Checks: amount > 0, currency no vacia y status in PENDING/PAID/CANCELLED. En schema.sql existe el indice unico parcial uq_billings_pending_enrollment para impedir mas de un PENDING por enrollment_id."
+
+  Indexes {
+    (enrollment_id) [name: "idx_billings_enrollment_id"]
+    (status) [name: "idx_billings_status"]
+    (created_at) [name: "idx_billings_created_at"]
+  }
+}

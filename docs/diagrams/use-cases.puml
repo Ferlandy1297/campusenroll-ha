@@ -1,0 +1,46 @@
+@startuml
+title CampusEnroll HA - Casos de uso principales
+
+left to right direction
+skinparam shadowing false
+
+actor Estudiante as estudiante
+actor "Registro Academico" as registro
+actor Administrador as admin
+actor "Operador de Finanzas" as finanzas
+
+rectangle "CampusEnroll HA" {
+  usecase "Gestionar estudiantes" as uc_students
+  usecase "Gestionar cursos" as uc_courses
+  usecase "Gestionar secciones" as uc_sections
+  usecase "Inscribir estudiante\n<<Caso critico>>" as uc_enroll #FFEB99
+  usecase "Generar cobro" as uc_billing
+  usecase "Consultar estado de inscripcion" as uc_status
+}
+
+estudiante --> uc_enroll
+estudiante --> uc_status
+
+registro --> uc_students
+registro --> uc_courses
+registro --> uc_sections
+registro --> uc_enroll
+registro --> uc_status
+
+admin --> uc_students
+admin --> uc_courses
+admin --> uc_sections
+admin --> uc_status
+
+finanzas --> uc_billing
+finanzas --> uc_status
+
+uc_enroll ..> uc_billing : <<include>>
+
+note right of uc_enroll
+Caso critico definido para el checkpoint:
+inscripcion de estudiante a una seccion
+y generacion de cobro asociado.
+end note
+
+@enduml
