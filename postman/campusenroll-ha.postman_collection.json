@@ -1,0 +1,1163 @@
+{
+  "info": {
+    "_postman_id": "cf21f287-593e-440d-815e-73899db7403d",
+    "name": "CampusEnroll HA",
+    "description": "Local Postman collection for the implemented CampusEnroll HA microservices. Uses direct service URLs, no auth, and no gateway routes.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 - Health Checks",
+      "item": [
+        {
+          "name": "Student Service - Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Health status is UP\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"UP\");",
+                  "    pm.expect(json.service).to.eql(\"student-service\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{student_service_url}}/health",
+              "host": [
+                "{{student_service_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Checks the local student-service health endpoint."
+          },
+          "response": []
+        },
+        {
+          "name": "Course Service - Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Health status is UP\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"UP\");",
+                  "    pm.expect(json.service).to.eql(\"course-service\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{course_service_url}}/health",
+              "host": [
+                "{{course_service_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Checks the local course-service health endpoint."
+          },
+          "response": []
+        },
+        {
+          "name": "Enrollment Service - Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Health status is UP\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"UP\");",
+                  "    pm.expect(json.service).to.eql(\"enrollment-service\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{enrollment_service_url}}/health",
+              "host": [
+                "{{enrollment_service_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Checks the local enrollment-service health endpoint."
+          },
+          "response": []
+        },
+        {
+          "name": "Billing Service - Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Health status is UP\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"UP\");",
+                  "    pm.expect(json.service).to.eql(\"billing-service\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{billing_service_url}}/health",
+              "host": [
+                "{{billing_service_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Checks the local billing-service health endpoint."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "01 - Students",
+      "item": [
+        {
+          "name": "List Students",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{student_service_url}}/api/students",
+              "host": [
+                "{{student_service_url}}"
+              ],
+              "path": [
+                "api",
+                "students"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Created student id is stored\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.id).to.not.eql(undefined);",
+                  "    pm.environment.set(\"student_id\", String(json.id));",
+                  "    pm.expect(pm.environment.get(\"student_id\")).to.eql(String(json.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentCode\": \"STU-{{$timestamp}}\",\n  \"firstName\": \"Ana\",\n  \"lastName\": \"Lopez\",\n  \"email\": \"ana.{{$timestamp}}@example.com\",\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{student_service_url}}/api/students",
+              "host": [
+                "{{student_service_url}}"
+              ],
+              "path": [
+                "api",
+                "students"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Student By Id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Student id matches environment\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(String(json.id)).to.eql(pm.environment.get(\"student_id\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{student_service_url}}/api/students/{{student_id}}",
+              "host": [
+                "{{student_service_url}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{student_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Student Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Student active flag was updated\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.active).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{student_service_url}}/api/students/{{student_id}}/status",
+              "host": [
+                "{{student_service_url}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{student_id}}",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Academic Catalog",
+      "item": [
+        {
+          "name": "List Courses",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{course_service_url}}/api/courses",
+              "host": [
+                "{{course_service_url}}"
+              ],
+              "path": [
+                "api",
+                "courses"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Course",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Created course id is stored\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.id).to.not.eql(undefined);",
+                  "    pm.environment.set(\"course_id\", String(json.id));",
+                  "    pm.expect(pm.environment.get(\"course_id\")).to.eql(String(json.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseCode\": \"CS{{$timestamp}}\",\n  \"name\": \"Introduction to Programming\",\n  \"credits\": 4,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{course_service_url}}/api/courses",
+              "host": [
+                "{{course_service_url}}"
+              ],
+              "path": [
+                "api",
+                "courses"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Course By Id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Course id matches environment\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(String(json.id)).to.eql(pm.environment.get(\"course_id\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{course_service_url}}/api/courses/{{course_id}}",
+              "host": [
+                "{{course_service_url}}"
+              ],
+              "path": [
+                "api",
+                "courses",
+                "{{course_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Academic Periods",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{course_service_url}}/api/periods",
+              "host": [
+                "{{course_service_url}}"
+              ],
+              "path": [
+                "api",
+                "periods"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Academic Period",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Created academic period id is stored\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.id).to.not.eql(undefined);",
+                  "    pm.environment.set(\"academic_period_id\", String(json.id));",
+                  "    pm.expect(pm.environment.get(\"academic_period_id\")).to.eql(String(json.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"2026 Semester 1 {{$timestamp}}\",\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{course_service_url}}/api/periods",
+              "host": [
+                "{{course_service_url}}"
+              ],
+              "path": [
+                "api",
+                "periods"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Sections",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{course_service_url}}/api/sections",
+              "host": [
+                "{{course_service_url}}"
+              ],
+              "path": [
+                "api",
+                "sections"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Section",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Created section id is stored\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.id).to.not.eql(undefined);",
+                  "    pm.environment.set(\"section_id\", String(json.id));",
+                  "    pm.expect(pm.environment.get(\"section_id\")).to.eql(String(json.id));",
+                  "});",
+                  "",
+                  "pm.test(\"Section references the selected course and period\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(String(json.courseId)).to.eql(pm.environment.get(\"course_id\"));",
+                  "    pm.expect(String(json.academicPeriodId)).to.eql(pm.environment.get(\"academic_period_id\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectionCode\": \"SEC-{{$timestamp}}\",\n  \"capacity\": 30,\n  \"active\": true,\n  \"courseId\": {{course_id}},\n  \"academicPeriodId\": {{academic_period_id}},\n  \"scheduleBlocks\": [\n    {\n      \"dayOfWeek\": \"MONDAY\",\n      \"startTime\": \"08:00:00\",\n      \"endTime\": \"09:30:00\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{course_service_url}}/api/sections",
+              "host": [
+                "{{course_service_url}}"
+              ],
+              "path": [
+                "api",
+                "sections"
+              ]
+            },
+            "description": "Run Create Course and Create Academic Period first so course_id and academic_period_id are available."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Enrollments",
+      "item": [
+        {
+          "name": "List Enrollments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{enrollment_service_url}}/api/enrollments",
+              "host": [
+                "{{enrollment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "enrollments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Enrollment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Created enrollment id is stored\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.id).to.not.eql(undefined);",
+                  "    pm.environment.set(\"enrollment_id\", String(json.id));",
+                  "    pm.expect(pm.environment.get(\"enrollment_id\")).to.eql(String(json.id));",
+                  "});",
+                  "",
+                  "pm.test(\"Enrollment starts as ENROLLED\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"ENROLLED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": {{student_id}},\n  \"sectionId\": {{section_id}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{enrollment_service_url}}/api/enrollments",
+              "host": [
+                "{{enrollment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "enrollments"
+              ]
+            },
+            "description": "Run Create Student and Create Section first so student_id and section_id are available."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Enrollment By Id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Enrollment id matches environment\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(String(json.id)).to.eql(pm.environment.get(\"enrollment_id\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{enrollment_service_url}}/api/enrollments/{{enrollment_id}}",
+              "host": [
+                "{{enrollment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "enrollments",
+                "{{enrollment_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Enrollment Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Enrollment status was updated\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"CANCELLED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CANCELLED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{enrollment_service_url}}/api/enrollments/{{enrollment_id}}/status",
+              "host": [
+                "{{enrollment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "enrollments",
+                "{{enrollment_id}}",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Billings",
+      "item": [
+        {
+          "name": "List Billings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{billing_service_url}}/api/billings",
+              "host": [
+                "{{billing_service_url}}"
+              ],
+              "path": [
+                "api",
+                "billings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Billing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Created billing id is stored\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.id).to.not.eql(undefined);",
+                  "    pm.environment.set(\"billing_id\", String(json.id));",
+                  "    pm.expect(pm.environment.get(\"billing_id\")).to.eql(String(json.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enrollmentId\": {{enrollment_id}},\n  \"amount\": 150.75,\n  \"currency\": \"USD\",\n  \"status\": \"PENDING\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{billing_service_url}}/api/billings",
+              "host": [
+                "{{billing_service_url}}"
+              ],
+              "path": [
+                "api",
+                "billings"
+              ]
+            },
+            "description": "Run Create Enrollment first so enrollment_id is available."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Billing By Id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Billing id matches environment\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(String(json.id)).to.eql(pm.environment.get(\"billing_id\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{billing_service_url}}/api/billings/{{billing_id}}",
+              "host": [
+                "{{billing_service_url}}"
+              ],
+              "path": [
+                "api",
+                "billings",
+                "{{billing_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Billing Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Billing status was updated\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"PAID\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PAID\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{billing_service_url}}/api/billings/{{billing_id}}/status",
+              "host": [
+                "{{billing_service_url}}"
+              ],
+              "path": [
+                "api",
+                "billings",
+                "{{billing_id}}",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - Notification",
+      "item": [
+        {
+          "name": "Notification Service - Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "    pm.response.json();",
+                  "});",
+                  "",
+                  "pm.test(\"Health status is UP\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"UP\");",
+                  "    pm.expect(json.service).to.eql(\"notification\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{notification_service_url}}/health",
+              "host": [
+                "{{notification_service_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Current notification coverage is limited to the implemented health endpoint."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [],
+  "variable": []
+}
