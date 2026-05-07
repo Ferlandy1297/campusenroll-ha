@@ -1,0 +1,52 @@
+@startuml
+title CampusEnroll HA - Flujo de eventos planificado
+
+left to right direction
+skinparam shadowing false
+skinparam componentStyle rectangle
+
+component "enrollment-service" as enrollment #FCF3CF
+queue "Exchange\ncampusenroll.enrollment.exchange" as ex_enrollment #FCF3CF
+queue "Queue\ncampusenroll.billing.enrollment-created.q" as q_enrollment_created #FCF3CF
+
+component "billing-service" as billing #FCF3CF
+queue "Exchange\ncampusenroll.billing.exchange" as ex_billing #FCF3CF
+queue "Queue\ncampusenroll.notification.billing-created.q" as q_billing_created #FCF3CF
+queue "Queue\ncampusenroll.notification.billing-paid.q" as q_billing_paid #FCF3CF
+queue "Queue\ncampusenroll.notification.requested.q" as q_notification_requested #FCF3CF
+
+component "notification" as notification #FCF3CF
+
+note top
+Mensajeria planificada y no implementada por completo.
+Los exchanges, queues y routing keys incluidos aqui
+son placeholders propuestos para la entrega final.
+end note
+
+enrollment --> ex_enrollment : EnrollmentCreated\nrouting key: enrollment.created
+ex_enrollment --> q_enrollment_created
+q_enrollment_created --> billing : consumidor propuesto
+
+billing --> ex_billing : BillingCreated\nrouting key: billing.created
+billing --> ex_billing : BillingPaid\nrouting key: billing.paid
+billing --> ex_billing : NotificationRequested\nrouting key: notification.requested
+
+ex_billing --> q_billing_created
+ex_billing --> q_billing_paid
+ex_billing --> q_notification_requested
+
+q_billing_created --> notification : consumir BillingCreated
+q_billing_paid --> notification : consumir BillingPaid
+q_notification_requested --> notification : consumir NotificationRequested
+
+note bottom of billing
+La emision de eventos por billing-service
+queda pendiente de integracion AMQP real.
+end note
+
+note bottom of notification
+notification aun no tiene consumidores implementados;
+hoy solo responde al health check.
+end note
+
+@enduml

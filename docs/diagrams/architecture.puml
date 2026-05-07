@@ -1,0 +1,91 @@
+@startuml
+title CampusEnroll HA - Arquitectura actual y preparada
+
+left to right direction
+skinparam shadowing false
+skinparam componentStyle rectangle
+
+legend right
+|= Estado |= Significado |
+|<back:#D5F5E3>Implementado| Flujo o componente en uso actual |
+|<back:#FCF3CF>Configurado / preparado| Existe en repo o infraestructura, con integracion parcial |
+|<back:#FADBD8>Pendiente| Planeado para entrega final |
+endlegend
+
+actor "Usuario tecnico" as user
+rectangle "Postman\ncliente actual de prueba" as postman #D5F5E3
+component "API Gateway\nentry point objetivo" as gateway #FADBD8
+
+node "Servicios backend\nse ejecutan fuera de Compose" {
+  component "student-service" as student #D5F5E3
+  component "course-service" as course #D5F5E3
+  component "enrollment-service" as enrollment #D5F5E3
+  component "billing-service" as billing #D5F5E3
+  component "notification\nsolo health check" as notification #D5F5E3
+}
+
+node "Docker Compose local\ninfraestructura compartida" as compose #FCF3CF {
+  database "PostgreSQL" as pg #D5F5E3
+  component "Redis" as redis #FCF3CF
+  queue "RabbitMQ" as mq #FCF3CF
+  component "Prometheus\nself-scrape actual" as prom #FCF3CF
+  component "Grafana\ncontenedor listo" as grafana #FCF3CF
+}
+
+user --> postman
+postman --> student : HTTP directo
+postman --> course : HTTP directo
+postman --> enrollment : HTTP directo
+postman --> billing : HTTP directo
+postman --> notification : HTTP directo
+
+postman ..> gateway : uso futuro
+gateway ..> student : enrutamiento planeado
+gateway ..> course : enrutamiento planeado
+gateway ..> enrollment : enrutamiento planeado
+gateway ..> billing : enrutamiento planeado
+gateway ..> notification : enrutamiento planeado
+
+student --> pg : persistencia
+course --> pg : persistencia
+enrollment --> pg : persistencia
+billing --> pg : persistencia
+
+course ..> redis : cache futura
+enrollment ..> redis : disponibilidad futura
+student ..> redis : uso eventual
+
+enrollment ..> mq : eventos planeados
+billing ..> mq : eventos planeados
+mq ..> notification : consumo planeado
+
+prom --> prom : scrape actual
+prom ..> student : scrape planeado
+prom ..> course : scrape planeado
+prom ..> enrollment : scrape planeado
+prom ..> billing : scrape planeado
+prom ..> notification : scrape planeado
+grafana --> prom : dashboards y consultas
+
+note bottom of gateway
+No hay evidencia de gateway operativo
+como punto de entrada de negocio.
+La coleccion Postman usa URLs directas por servicio.
+end note
+
+note bottom of redis
+Redis ya existe en Compose,
+pero aun no esta integrado a la logica de negocio.
+end note
+
+note bottom of mq
+RabbitMQ ya existe en Compose,
+pero los flujos asincronos de negocio siguen pendientes.
+end note
+
+note bottom of compose
+El Compose actual levanta solo infraestructura compartida,
+no todos los microservicios de negocio.
+end note
+
+@enduml
