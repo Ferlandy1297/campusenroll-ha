@@ -2,48 +2,29 @@
 
 ## Proposito
 
-Esta carpeta agrupa el material de apoyo para presentar y sustentar la `Revision Tecnica Avanzada del Proyecto Final` de CampusEnroll HA.
+`docs/demo/` concentra la guia practica para la entrega final de S19. El objetivo ya no es describir un checkpoint hipotetico, sino ejecutar una validacion corta, repetible y honesta del estado actual del repositorio.
 
-Su objetivo es ayudar a:
+## Que cubre
 
-- conducir una demo corta y consistente
-- preparar capturas y evidencia antes del envio
-- tener a mano comandos seguros de apoyo durante la exposicion
+- `DEMO_SCRIPT.md`
+  - narrativa de 5 a 8 minutos para la exposicion
+- `DEMO_COMMANDS.md`
+  - comandos PowerShell exactos para infraestructura, base de datos, servicios, Postman, Redis, RabbitMQ, k6 y observabilidad
+- `EVIDENCE_CHECKLIST.md`
+  - lista de capturas y salidas que deben quedar guardadas para la entrega final
 
-Este material no reemplaza el PDF final del checkpoint. Lo complementa y facilita su preparacion.
+## Orden recomendado
 
-## Archivos
+1. Leer `DEMO_SCRIPT.md`.
+2. Abrir una terminal PowerShell en la raiz del repo.
+3. Ejecutar `DEMO_COMMANDS.md`.
+4. Importar Postman y validar el flujo funcional.
+5. Completar `EVIDENCE_CHECKLIST.md`.
 
-- `docs/demo/DEMO_SCRIPT.md`
-  - guion sugerido de 5 a 8 minutos en espanol
-- `docs/demo/EVIDENCE_CHECKLIST.md`
-  - checklist de capturas y evidencia requerida antes de enviar
-- `docs/demo/DEMO_COMMANDS.md`
-  - comandos PowerShell utiles y seguros para la demo
-- `docs/demo/README.md`
-  - descripcion y orden recomendado de uso
+## Mensajes que no deben perderse en la demo
 
-## Orden recomendado de uso
-
-1. Leer `DEMO_SCRIPT.md` para preparar la narrativa.
-2. Revisar `DEMO_COMMANDS.md` para tener terminal y verificaciones listas.
-3. Ejecutar o ensayar la demo con Postman y los documentos tecnicos abiertos.
-4. Completar `EVIDENCE_CHECKLIST.md` mientras se capturan las pruebas visuales.
-5. Consolidar las capturas en el PDF final del checkpoint.
-
-## Alcance y limites
-
-- Las capturas reales deben tomarse manualmente.
-- Este folder documenta el estado actual del proyecto y no debe usarse para afirmar funcionalidades no implementadas.
-- Postman es el cliente actual del sistema porque todavia no existe frontend.
-- Redis, RabbitMQ, Prometheus y Grafana deben presentarse como infraestructura disponible o preparada, no como integracion completa de negocio si esa evidencia no existe.
-
-## Recomendacion practica
-
-Para una demo corta y ordenada, tener abiertos al mismo tiempo:
-
-- el repositorio
-- Postman
-- `docs/checkpoint/CHECKPOINT_1_REVISION_TECNICA.md`
-- `docs/demo/DEMO_SCRIPT.md`
-- una terminal PowerShell en la raiz del proyecto
+- Postman es el cliente actual porque no existe frontend.
+- Docker Compose levanta infraestructura, no los microservicios Spring Boot.
+- Redis si participa hoy en `course-service`.
+- RabbitMQ si participa hoy para publicacion y consumo de eventos de evidencia.
+- Prometheus y Grafana existen como infraestructura disponible, pero la observabilidad de aplicacion sigue parcial.
