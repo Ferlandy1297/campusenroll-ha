@@ -8,107 +8,93 @@ The goal is to gather evidence about service behavior before, during, and after 
 
 Automatic chaos testing is not implemented yet in this segment.
 
-## Recommended Scenario
+## Current Repo Reality
 
-Choose one business service that is relevant to the validation session, for example:
+`docker-compose.yml` in this repository currently starts shared infrastructure only:
 
-- `student-service`
-- `course-service`
-- `enrollment-service`
-- `billing-service`
+- `postgres`
+- `redis`
+- `rabbitmq`
+- `prometheus`
+- `grafana`
 
-`notification` can also be observed, but it only exposes `GET /health` in the current implemented state.
+The Spring Boot business services are normally started separately with `mvn spring-boot:run`. Because of that, the most relevant S18 failure observation is `redis` while `course-service` keeps running locally.
 
-## Baseline Commands
+## Recommended Scenario For S18
 
-Check current container status:
+Observe Redis degradation against the new catalog cache in `course-service`.
+
+### Baseline
+
+Start infrastructure and the service:
 
 ```powershell
+docker compose up -d postgres redis
+cd .\backend\course-service
+mvn spring-boot:run
+```
+
+Warm the cache and capture Redis key evidence:
+
+```powershell
+curl.exe http://localhost:8082/api/courses
+curl.exe http://localhost:8082/api/courses
+docker exec -i campusenroll-redis redis-cli --scan --pattern "courses::*"
+```
+
+Optional short read validation:
+
+```powershell
+k6 run .\infra\k6\load-50000-requests.js
+```
+
+### Failure Injection
+
+```powershell
+docker compose stop redis
 docker compose ps
 ```
 
-Review logs for the selected service:
+While Redis is stopped, confirm the endpoint still answers and record logs:
 
 ```powershell
-docker compose logs <service>
+curl.exe http://localhost:8082/api/courses
+docker compose logs redis
 ```
 
-Confirm service health before the failure:
+Capture the `course-service` console warning that the cache operation failed and the request continued with database access.
+
+### Recovery
 
 ```powershell
-curl http://localhost:<port>/health
-```
-
-Example:
-
-```powershell
-curl http://localhost:8083/health
-```
-
-## Failure Injection Steps
-
-1. Capture the baseline state.
-2. Stop one selected container.
-3. Observe service availability and test behavior.
-4. Start the container again.
-5. Confirm health recovery and collect post-restart evidence.
-
-Stop a service:
-
-```powershell
-docker compose stop <service>
-```
-
-Example:
-
-```powershell
-docker compose stop enrollment-service
-```
-
-Check status immediately after stopping it:
-
-```powershell
+docker compose start redis
 docker compose ps
+docker exec -i campusenroll-redis redis-cli ping
+curl.exe http://localhost:8082/api/courses
+docker exec -i campusenroll-redis redis-cli --scan --pattern "courses::*"
 ```
 
-Collect service logs:
+## Alternative Scenario
 
-```powershell
-docker compose logs <service>
-```
+If you want a failure observation closer to the critical enrollment path, stop `postgres` or `rabbitmq` while `enrollment-service` is running locally and record the effect on:
 
-Restart the service:
-
-```powershell
-docker compose start <service>
-```
-
-Check status after restart:
-
-```powershell
-docker compose ps
-```
-
-Collect logs again:
-
-```powershell
-docker compose logs <service>
-```
+- `POST /api/enrollments`
+- event publication logging
+- `infra/k6/concurrent-enrollment-test.js`
 
 ## What To Observe
 
 During the stopped state, capture:
 
-- whether `GET /health` fails or times out as expected
-- whether Postman requests fail consistently
-- whether k6 smoke or scenario results show the expected service unavailability
-- whether other services remain reachable if they are independent in the current implementation
+- whether catalog reads still work when only Redis is stopped
+- whether the application logs clearly show cache fallback behavior
+- whether k6 read/load results degrade gracefully instead of failing hard
+- whether the stopped infrastructure component reports the expected Docker status
 
 After restart, capture:
 
-- whether `GET /health` returns successfully again
-- whether Postman requests recover
-- whether k6 smoke checks recover
+- whether Redis responds to `PING` again
+- whether cache keys reappear after the next catalog request
 - whether Docker reports the container as running again
 
 ## Evidence To Capture
@@ -116,22 +102,24 @@ After restart, capture:
 For the checkpoint review, capture real evidence such as:
 
 - before/after screenshots
-- service health response
-- Postman result
-- k6 result summary
+- repeated `GET /api/courses` output
+- Redis `--scan` output before stop and after restart
+- k6 result summary if you ran one
 - Docker container status from `docker compose ps`
-- relevant `docker compose logs <service>` excerpts
+- relevant `docker compose logs redis` excerpts
+- relevant `course-service` warning log excerpt showing cache fallback
 
 ## Suggested Validation Pairings
 
-- Run `infra/k6/smoke-test.js` before stopping the container.
-- Stop the selected service with `docker compose stop <service>`.
-- Re-run `infra/k6/smoke-test.js` and document the failed health check.
-- Start the service again with `docker compose start <service>`.
-- Re-run `infra/k6/smoke-test.js` and document recovery.
+- Run `curl.exe http://localhost:8082/api/courses` twice before stopping Redis.
+- Stop Redis with `docker compose stop redis`.
+- Re-run `curl.exe http://localhost:8082/api/courses` and document successful fallback.
+- Start Redis again with `docker compose start redis`.
+- Re-run `curl.exe http://localhost:8082/api/courses` and document cache recovery.
 
 ## Limitations
 
 - This is a manual observation procedure, not automated chaos engineering.
 - No automatic restart policy validation is claimed here.
 - No synthetic failover or multi-replica recovery is implemented in this checkpoint asset.
+- Because business services are not defined as Compose services in this repo, stopping a service container is only applicable if you packaged and launched one separately.

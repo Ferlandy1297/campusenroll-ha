@@ -15,6 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class EnrollmentService {
 
+    private static final String DUPLICATE_ACTIVE_ENROLLMENT_MESSAGE =
+            "An active enrollment already exists for this student and section";
+
     private final EnrollmentRepository enrollmentRepository;
     private final EnrollmentEventPublisher enrollmentEventPublisher;
 
@@ -41,7 +44,7 @@ public class EnrollmentService {
     public EnrollmentResponse create(CreateEnrollmentRequest request) {
         if (enrollmentRepository.existsByStudentIdAndSectionIdAndStatus(
                 request.getStudentId(), request.getSectionId(), EnrollmentStatus.ENROLLED)) {
-            throw new ConflictException("An active enrollment already exists for this student and section");
+            throw new ConflictException(DUPLICATE_ACTIVE_ENROLLMENT_MESSAGE);
         }
 
         Enrollment enrollment = new Enrollment();
@@ -51,11 +54,11 @@ public class EnrollmentService {
         enrollment.setEnrolledAt(OffsetDateTime.now());
 
         try {
-            Enrollment savedEnrollment = enrollmentRepository.save(enrollment);
+            Enrollment savedEnrollment = enrollmentRepository.saveAndFlush(enrollment);
             enrollmentEventPublisher.publishEnrollmentCreated(savedEnrollment);
             return toResponse(savedEnrollment);
         } catch (DataIntegrityViolationException ex) {
-            throw new ConflictException("An enrollment already exists for this student and section");
+            throw new ConflictException(DUPLICATE_ACTIVE_ENROLLMENT_MESSAGE);
         }
     }
 
@@ -68,15 +71,15 @@ public class EnrollmentService {
                 && enrollment.getStatus() != EnrollmentStatus.ENROLLED
                 && enrollmentRepository.existsByStudentIdAndSectionIdAndStatus(
                         enrollment.getStudentId(), enrollment.getSectionId(), EnrollmentStatus.ENROLLED)) {
-            throw new ConflictException("An active enrollment already exists for this student and section");
+            throw new ConflictException(DUPLICATE_ACTIVE_ENROLLMENT_MESSAGE);
         }
 
         enrollment.setStatus(nextStatus);
 
         try {
-            return toResponse(enrollmentRepository.save(enrollment));
+            return toResponse(enrollmentRepository.saveAndFlush(enrollment));
         } catch (DataIntegrityViolationException ex) {
-            throw new ConflictException("An enrollment already exists for this student and section");
+            throw new ConflictException(DUPLICATE_ACTIVE_ENROLLMENT_MESSAGE);
         }
     }
 

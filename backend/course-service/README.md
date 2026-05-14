@@ -7,6 +7,7 @@ Spring Boot service for the CampusEnroll HA academic catalog slice owned by `cou
 This segment includes only:
 - course catalog entities for `Course`, `AcademicPeriod`, `Section`, and embedded `ScheduleBlock`
 - JPA repositories and service-layer orchestration
+- Redis-backed cache for read-only catalog list endpoints
 - DTOs, request validation, and basic API error handling
 - catalog endpoints plus the existing health endpoint at `GET /health`
 
@@ -91,7 +92,9 @@ Example create section request:
 - Spring Web
 - Spring Boot Actuator
 - Spring Validation
+- Spring Cache
 - Spring Data JPA
+- Spring Data Redis
 - PostgreSQL driver
 
 ## Run Locally
@@ -113,6 +116,45 @@ Override with:
 - `COURSE_SERVICE_DATASOURCE_URL`
 - `COURSE_SERVICE_DATASOURCE_USERNAME`
 - `COURSE_SERVICE_DATASOURCE_PASSWORD`
+- `REDIS_HOST`
+- `REDIS_PORT`
+- `APP_CACHE_TTL_SECONDS`
+
+## Redis Cache
+
+- `GET /api/courses` uses cache `courses`
+- `GET /api/periods` uses cache `academicPeriods`
+- `GET /api/sections` uses cache `sections`
+- `POST /api/courses`, `POST /api/periods`, and `POST /api/sections` evict only the related list cache
+- cache TTL defaults to `300` seconds
+- if Redis is unavailable, the service logs the cache error and falls back to direct database reads
+
+Manual verification example:
+
+```powershell
+docker compose up -d postgres redis
+```
+
+```powershell
+cd .\backend\course-service
+mvn spring-boot:run
+```
+
+```powershell
+curl.exe http://localhost:8082/api/courses
+curl.exe http://localhost:8082/api/courses
+docker exec -i campusenroll-redis redis-cli --scan --pattern "courses::*"
+```
+
+Create a new course and confirm cache invalidation:
+
+```powershell
+curl.exe -X POST http://localhost:8082/api/courses `
+  -H "Content-Type: application/json" `
+  -d "{\"courseCode\":\"ARQ301\",\"name\":\"Software Architecture\",\"credits\":4,\"active\":true}"
+curl.exe http://localhost:8082/api/courses
+docker exec -i campusenroll-redis redis-cli --scan --pattern "courses::*"
+```
 
 ## Test
 

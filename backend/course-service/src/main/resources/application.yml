@@ -5,10 +5,18 @@ spring:
     url: ${COURSE_SERVICE_DATASOURCE_URL:jdbc:postgresql://localhost:5432/campusenroll}
     username: ${COURSE_SERVICE_DATASOURCE_USERNAME:campus}
     password: ${COURSE_SERVICE_DATASOURCE_PASSWORD:campus_password}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   jpa:
     hibernate:
       ddl-auto: update
     open-in-view: false
+
+app:
+  cache:
+    ttl-seconds: ${APP_CACHE_TTL_SECONDS:300}
 
 server:
   port: ${SERVER_PORT:8082}

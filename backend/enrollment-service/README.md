@@ -89,6 +89,8 @@ This keeps the segment runnable locally without introducing migrations yet.
 - `sectionId` is required
 - `status` must be a valid enum value on status updates
 - duplicate active enrollment is rejected for the same `studentId + sectionId`
+- enrollment creation publishes `EnrollmentCreatedEvent` only after the insert is flushed successfully
+- the richer status workflow is intentionally limited to `ENROLLED` and `CANCELLED` in this segment
 
 ### Example create request
 
@@ -124,6 +126,12 @@ Event fields:
 - `occurredAt`
 
 If RabbitMQ is unavailable, the REST operation still succeeds and the publish failure is logged.
+
+## Consistency Notes
+
+- `EnrollmentService` performs an application-level duplicate-active check before insert/update.
+- For final validation, use the authoritative `db/schema.sql`, where PostgreSQL partial unique index `uq_enrollments_active_student_section` is the last concurrency guard for active enrollments.
+- The service flushes the enrollment write before publishing the RabbitMQ event so a late database conflict does not produce false-positive event evidence.
 
 ## Test
 

@@ -7,19 +7,27 @@ const testStudentId = Number(__ENV.TEST_STUDENT_ID || 1);
 const testSectionId = Number(__ENV.TEST_SECTION_ID || 1);
 const VUS = Number(__ENV.VUS || 20);
 const ITERATIONS = Number(__ENV.ITERATIONS || 20);
+const MAX_DURATION = __ENV.MAX_DURATION || '1m';
 
 const createdResponses = new Counter('enrollment_created_responses');
 const conflictResponses = new Counter('enrollment_conflict_responses');
 const unexpectedResponses = new Counter('enrollment_unexpected_responses');
 
 export const options = {
-  vus: VUS,
-  iterations: ITERATIONS,
+  scenarios: {
+    concurrent_enrollment: {
+      executor: 'shared-iterations',
+      vus: VUS,
+      iterations: ITERATIONS,
+      maxDuration: MAX_DURATION,
+    },
+  },
   thresholds: {
     http_req_failed: ['rate<0.10'],
     http_req_duration: ['p(95)<2000', 'p(99)<3000'],
     checks: ['rate>0.90'],
   },
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(95)', 'p(99)', 'count'],
 };
 
 export default function () {
