@@ -5,11 +5,21 @@ spring:
     url: ${BILLING_SERVICE_DATASOURCE_URL:jdbc:postgresql://localhost:5432/campusenroll}
     username: ${BILLING_SERVICE_DATASOURCE_USERNAME:campus}
     password: ${BILLING_SERVICE_DATASOURCE_PASSWORD:campus_password}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
   jpa:
     hibernate:
       ddl-auto: none
     open-in-view: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+app:
+  messaging:
+    exchange: ${APP_EVENTS_EXCHANGE:campusenroll.events}
+    billing-status-changed-routing-key: ${APP_BILLING_STATUS_CHANGED_ROUTING_KEY:billing.status.changed}
 
 server:
   port: ${SERVER_PORT:8084}

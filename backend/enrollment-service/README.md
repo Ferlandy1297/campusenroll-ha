@@ -9,6 +9,7 @@ This segment includes:
 - JPA repository
 - service-layer enrollment rules
 - DTOs and REST endpoints
+- RabbitMQ event publication for successful enrollment creation
 - request validation and basic error handling
 - focused unit and web tests
 - health endpoint at `GET /health`
@@ -19,7 +20,7 @@ This segment does not include:
 - schedule-overlap validation
 - billing compensation
 - authentication or authorization
-- messaging, sagas, or Docker Compose changes
+- sagas, retries, DLQs, or Docker Compose changes
 
 ## Stack
 
@@ -31,6 +32,7 @@ This segment does not include:
 - Spring Validation
 - Spring Data JPA
 - PostgreSQL driver
+- Spring AMQP
 
 ## Run Locally
 
@@ -48,6 +50,12 @@ Override with:
 - `ENROLLMENT_SERVICE_DATASOURCE_URL`
 - `ENROLLMENT_SERVICE_DATASOURCE_USERNAME`
 - `ENROLLMENT_SERVICE_DATASOURCE_PASSWORD`
+- `RABBITMQ_HOST`
+- `RABBITMQ_PORT`
+- `RABBITMQ_USERNAME`
+- `RABBITMQ_PASSWORD`
+- `APP_EVENTS_EXCHANGE`
+- `APP_ENROLLMENT_CREATED_ROUTING_KEY`
 
 Current JPA behavior:
 - `spring.jpa.hibernate.ddl-auto=update`
@@ -99,6 +107,24 @@ This keeps the segment runnable locally without introducing migrations yet.
 }
 ```
 
+## RabbitMQ Event Flow
+
+On successful `POST /api/enrollments`, the service publishes `EnrollmentCreatedEvent` to:
+
+- Exchange: `campusenroll.events`
+- Routing key: `enrollment.created`
+
+Event fields:
+
+- `eventId`
+- `enrollmentId`
+- `studentId`
+- `sectionId`
+- `status`
+- `occurredAt`
+
+If RabbitMQ is unavailable, the REST operation still succeeds and the publish failure is logged.
+
 ## Test
 
 ```bash
@@ -109,4 +135,4 @@ mvn test
 
 - add schema migrations
 - integrate downstream validation and workflows when boundaries allow
-- define events and external contracts
+- harden event delivery with outbox/retry patterns if the project scope expands

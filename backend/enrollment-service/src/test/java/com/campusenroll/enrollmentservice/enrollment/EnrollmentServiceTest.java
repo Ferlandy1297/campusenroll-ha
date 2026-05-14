@@ -8,6 +8,7 @@ import com.campusenroll.enrollmentservice.enrollment.dto.EnrollmentResponse;
 import com.campusenroll.enrollmentservice.enrollment.dto.UpdateEnrollmentStatusRequest;
 import com.campusenroll.enrollmentservice.error.ConflictException;
 import com.campusenroll.enrollmentservice.error.ResourceNotFoundException;
+import com.campusenroll.enrollmentservice.messaging.EnrollmentEventPublisher;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -24,7 +25,8 @@ class EnrollmentServiceTest {
     @Test
     void shouldCreateEnrollmentWithDefaultEnrolledStatus() {
         RepositoryState state = new RepositoryState();
-        EnrollmentService enrollmentService = new EnrollmentService(repository(state));
+        RecordingEnrollmentEventPublisher eventPublisher = new RecordingEnrollmentEventPublisher();
+        EnrollmentService enrollmentService = new EnrollmentService(repository(state), eventPublisher);
 
         CreateEnrollmentRequest request = new CreateEnrollmentRequest();
         request.setStudentId(100L);
@@ -39,12 +41,15 @@ class EnrollmentServiceTest {
         assertThat(response.enrolledAt()).isNotNull();
         assertThat(state.storage.values()).hasSize(1);
         assertThat(new ArrayList<>(state.storage.values()).get(0).getEnrolledAt()).isNotNull();
+        assertThat(eventPublisher.publishedEnrollments).hasSize(1);
+        assertThat(eventPublisher.publishedEnrollments.get(0).getId()).isEqualTo(1L);
     }
 
     @Test
     void shouldRejectDuplicateActiveEnrollmentOnCreate() {
         RepositoryState state = new RepositoryState();
-        EnrollmentService enrollmentService = new EnrollmentService(repository(state));
+        EnrollmentService enrollmentService =
+                new EnrollmentService(repository(state), new RecordingEnrollmentEventPublisher());
 
         Enrollment existing = new Enrollment();
         existing.setStudentId(100L);
@@ -64,7 +69,8 @@ class EnrollmentServiceTest {
 
     @Test
     void shouldRejectMissingEnrollmentOnStatusUpdate() {
-        EnrollmentService enrollmentService = new EnrollmentService(repository(new RepositoryState()));
+        EnrollmentService enrollmentService =
+                new EnrollmentService(repository(new RepositoryState()), new RecordingEnrollmentEventPublisher());
 
         UpdateEnrollmentStatusRequest request = new UpdateEnrollmentStatusRequest();
         request.setStatus(EnrollmentStatus.CANCELLED);
@@ -77,7 +83,8 @@ class EnrollmentServiceTest {
     @Test
     void shouldRejectReactivationWhenAnotherActiveEnrollmentExists() {
         RepositoryState state = new RepositoryState();
-        EnrollmentService enrollmentService = new EnrollmentService(repository(state));
+        EnrollmentService enrollmentService =
+                new EnrollmentService(repository(state), new RecordingEnrollmentEventPublisher());
 
         Enrollment existing = new Enrollment();
         existing.setStudentId(100L);
@@ -120,6 +127,15 @@ class EnrollmentServiceTest {
     private static final class RepositoryState {
         private final Map<Long, Enrollment> storage = new HashMap<>();
         private long sequence = 1L;
+    }
+
+    private static final class RecordingEnrollmentEventPublisher implements EnrollmentEventPublisher {
+        private final List<Enrollment> publishedEnrollments = new ArrayList<>();
+
+        @Override
+        public void publishEnrollmentCreated(Enrollment enrollment) {
+            publishedEnrollments.add(enrollment);
+        }
     }
 
     private static final class EnrollmentRepositoryHandler implements InvocationHandler {

@@ -149,7 +149,7 @@ class BillingControllerTest {
         private RuntimeException getByIdException;
 
         private StubBillingService() {
-            super(null);
+            super(null, (billing, previousStatus, newStatus) -> {});
         }
 
         @Override
