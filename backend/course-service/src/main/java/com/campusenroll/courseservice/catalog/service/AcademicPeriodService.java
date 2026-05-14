@@ -1,11 +1,14 @@
 package com.campusenroll.courseservice.catalog.service;
 
+import com.campusenroll.courseservice.catalog.cache.CatalogCacheNames;
 import com.campusenroll.courseservice.catalog.dto.AcademicPeriodRequest;
 import com.campusenroll.courseservice.catalog.dto.AcademicPeriodResponse;
 import com.campusenroll.courseservice.catalog.exception.ResourceNotFoundException;
 import com.campusenroll.courseservice.catalog.model.AcademicPeriod;
 import com.campusenroll.courseservice.catalog.repository.AcademicPeriodRepository;
 import java.util.List;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +22,7 @@ public class AcademicPeriodService {
         this.academicPeriodRepository = academicPeriodRepository;
     }
 
+    @Cacheable(cacheNames = CatalogCacheNames.ACADEMIC_PERIODS)
     @Transactional(readOnly = true)
     public List<AcademicPeriodResponse> getPeriods() {
         return academicPeriodRepository.findAll(Sort.by("name").ascending()).stream()
@@ -26,6 +30,7 @@ public class AcademicPeriodService {
                 .toList();
     }
 
+    @CacheEvict(cacheNames = CatalogCacheNames.ACADEMIC_PERIODS, allEntries = true)
     @Transactional
     public AcademicPeriodResponse createPeriod(AcademicPeriodRequest request) {
         AcademicPeriod academicPeriod = new AcademicPeriod();

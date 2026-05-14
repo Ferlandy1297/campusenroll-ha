@@ -2,28 +2,27 @@
 
 ## Purpose
 
-This directory contains the initial k6 load-testing assets required for the `Revisión Técnica Avanzada del Proyecto Final` checkpoint.
+This folder contains the practical k6 assets for final technical validation of CampusEnroll HA:
 
-The goal of these assets is to provide:
+- smoke check for service availability
+- exact 50,000-request read scenario
+- concurrent enrollment attempt against the duplicate-active rule
+- manual container-failure observation guide
 
-- a lightweight smoke check for service availability
-- an initial 50,000-request read-focused load scenario
-- a concurrency scenario for duplicate active enrollment protection
-- a manual observation guide for container failure during validation
+These files are prepared assets. They still need to be executed during the final demo to produce real evidence.
 
-These files are checkpoint assets only. They are intended to be executed during final validation; this repository does not claim that the tests have already been run.
+## Current Execution Model
 
-## Service URLs Used
+- `docker-compose.yml` starts shared infrastructure only: PostgreSQL, Redis, RabbitMQ, Prometheus, and Grafana.
+- The Spring Boot services are expected to run separately, typically with `mvn spring-boot:run`.
+- Default local URLs used by the scripts:
+  - `student-service`: `http://localhost:8081`
+  - `course-service`: `http://localhost:8082`
+  - `enrollment-service`: `http://localhost:8083`
+  - `billing-service`: `http://localhost:8084`
+  - `notification`: `http://localhost:8085`
 
-Default local URLs used by the scripts:
-
-- `student-service`: `http://localhost:8081`
-- `course-service`: `http://localhost:8082`
-- `enrollment-service`: `http://localhost:8083`
-- `billing-service`: `http://localhost:8084`
-- `notification`: `http://localhost:8085`
-
-These defaults can be overridden with environment variables at runtime.
+All URLs can be overridden with environment variables.
 
 ## Files
 
@@ -34,29 +33,125 @@ These defaults can be overridden with environment variables at runtime.
 
 ## Prerequisites
 
-- Docker Compose environment running locally
-- CampusEnroll HA services available on the expected ports
-- Existing demo data loaded for list/read endpoints
-- For `concurrent-enrollment-test.js`, an existing student record and an existing section record
-
-Suggested validation before running k6:
+- shared infra up if the target service depends on it:
 
 ```powershell
+docker compose up -d postgres redis rabbitmq
 docker compose ps
 ```
 
-## Run k6 With Docker
+- services running on the expected local ports
+- `db/schema.sql` and `db/data.sql` loaded if you want deterministic demo data
+- for the concurrency script, a valid student and section pair
 
-If k6 is not installed locally, run it with the official Docker image:
+Database load example:
 
 ```powershell
-docker run --rm -i `
-  --network host `
-  -v "${PWD}/infra/k6:/scripts" `
-  grafana/k6 run /scripts/smoke-test.js
+Get-Content -Raw .\db\schema.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
+Get-Content -Raw .\db\data.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
 ```
 
-If `--network host` is not supported on your Docker setup, replace service URLs with `host.docker.internal`, for example:
+## Run Locally
+
+If `k6` is installed locally, prefer these commands on Windows PowerShell:
+
+### 1. Smoke Test
+
+```powershell
+k6 run .\infra\k6\smoke-test.js
+```
+
+Expected output:
+
+- all health checks should return HTTP 200
+- `http_req_failed` should stay near `0`
+- `checks` should stay near `1.00`
+
+Evidence to capture:
+
+- terminal summary
+- one screenshot showing all health checks passing
+
+### 2. Exact 50,000-Request Read Scenario
+
+```powershell
+k6 run .\infra\k6\load-50000-requests.js
+```
+
+Optional tuning:
+
+```powershell
+$env:REQUEST_TARGET="50000"
+$env:VUS="100"
+$env:MAX_DURATION="10m"
+k6 run .\infra\k6\load-50000-requests.js
+```
+
+What this script does:
+
+- executes exactly `REQUEST_TARGET` HTTP requests
+- rotates across implemented read endpoints
+- keeps the scenario non-destructive
+
+Basic pass/fail interpretation:
+
+- pass: total requests reaches 50,000, `http_req_failed` stays low, and p95/p99 remain reviewable
+- investigate: high failure rate, repeated 5xx responses, or latency spikes that break your presentation target
+
+Evidence to capture:
+
+- request total from the final k6 summary
+- throughput / request rate
+- `http_req_failed`
+- p95 and p99 latency
+
+### 3. Concurrent Enrollment Attempt
+
+```powershell
+$env:ENROLLMENT_SERVICE_URL="http://localhost:8083"
+$env:TEST_STUDENT_ID="1"
+$env:TEST_SECTION_ID="2"
+$env:VUS="20"
+$env:ITERATIONS="20"
+$env:MAX_DURATION="1m"
+k6 run .\infra\k6\concurrent-enrollment-test.js
+```
+
+Expected behavior:
+
+- one `201 Created` and the rest `409 Conflict`, or
+- all `409 Conflict` if the active enrollment already existed before the test
+
+Basic pass/fail interpretation:
+
+- pass: no duplicate success responses for the same `studentId + sectionId`
+- investigate: multiple `201` responses for the same pair, 5xx responses, or missing conflict messages
+
+Evidence to capture:
+
+- k6 summary
+- counts for `enrollment_created_responses`
+- counts for `enrollment_conflict_responses`
+- one sample `409` response body
+
+### 4. Container Failure Observation
+
+Use:
+
+```powershell
+Get-Content .\infra\k6\container-failure-observation.md
+```
+
+Recommended S18 observation:
+
+- stop `redis`
+- keep `course-service` running locally
+- repeat `GET /api/courses`
+- capture that reads continue with cache fallback
+
+## Docker Fallback
+
+If `k6` is not installed locally, use the Docker image and point requests to `host.docker.internal`:
 
 ```powershell
 docker run --rm -i `
@@ -69,101 +164,10 @@ docker run --rm -i `
   grafana/k6 run /scripts/smoke-test.js
 ```
 
-## How To Run Each Script
+Replace `/scripts/smoke-test.js` with the script you want to run.
 
-### 1. Smoke Test
+## Notes
 
-Purpose: confirm that all current service health endpoints respond correctly.
-
-```powershell
-docker run --rm -i `
-  --network host `
-  -v "${PWD}/infra/k6:/scripts" `
-  grafana/k6 run /scripts/smoke-test.js
-```
-
-Optional overrides:
-
-```powershell
-docker run --rm -i `
-  --network host `
-  -e STUDENT_SERVICE_URL=http://localhost:8081 `
-  -e COURSE_SERVICE_URL=http://localhost:8082 `
-  -e ENROLLMENT_SERVICE_URL=http://localhost:8083 `
-  -e BILLING_SERVICE_URL=http://localhost:8084 `
-  -e NOTIFICATION_SERVICE_URL=http://localhost:8085 `
-  -v "${PWD}/infra/k6:/scripts" `
-  grafana/k6 run /scripts/smoke-test.js
-```
-
-### 2. 50,000-Request Load Scenario
-
-Purpose: exercise the implemented read endpoints with a non-destructive accumulated volume target.
-
-```powershell
-docker run --rm -i `
-  --network host `
-  -v "${PWD}/infra/k6:/scripts" `
-  grafana/k6 run /scripts/load-50000-requests.js
-```
-
-Optional tuning:
-
-```powershell
-docker run --rm -i `
-  --network host `
-  -e REQUEST_TARGET=50000 `
-  -e VUS=100 `
-  -e DURATION=5m `
-  -v "${PWD}/infra/k6:/scripts" `
-  grafana/k6 run /scripts/load-50000-requests.js
-```
-
-### 3. Concurrent Enrollment Scenario
-
-Purpose: validate the critical duplicate-active-enrollment rule under parallel requests.
-
-Important:
-
-- this script expects an existing student and an existing section
-- this script uses `POST /api/enrollments`
-- this script is intentionally focused on one critical business rule, not on Redis, RabbitMQ, or API Gateway behavior
-
-```powershell
-docker run --rm -i `
-  --network host `
-  -e ENROLLMENT_SERVICE_URL=http://localhost:8083 `
-  -e TEST_STUDENT_ID=1 `
-  -e TEST_SECTION_ID=1 `
-  -v "${PWD}/infra/k6:/scripts" `
-  grafana/k6 run /scripts/concurrent-enrollment-test.js
-```
-
-## Expected Metrics
-
-The checkpoint expects evidence from the following k6 outputs:
-
-- total request count
-- request rate / throughput
-- `http_req_failed`
-- `http_req_duration`
-- `checks`
-- p95 and p99 latency from the k6 summary
-
-For the concurrency scenario, also review:
-
-- count of `201 Created`
-- count of `409 Conflict`
-- whether responses are consistent with the duplicate-enrollment rule
-
-## Limitations
-
-- These are initial checkpoint assets, not a full performance engineering suite.
-- The load scenario prioritizes implemented `GET` endpoints and avoids destructive writes by default.
-- The concurrency script depends on valid existing IDs and may return all `409` responses if an active enrollment already exists before the test starts.
-- Automatic chaos testing is not implemented yet; container failure is documented as a manual observation procedure only.
-- Prometheus, Grafana, Redis, and RabbitMQ are present in infrastructure, but these scripts do not require them to be integrated into business logic.
-
-## Checkpoint Note
-
-These assets are aligned to the currently implemented CampusEnroll HA endpoints and are intended to support the technical checkpoint review. They must be executed during final validation to produce real evidence and metrics.
+- `load-50000-requests.js` now reaches the configured request target exactly instead of approximating it by duration.
+- `concurrent-enrollment-test.js` is intentionally focused on one critical rule and is the best artifact to pair with the enrollment consistency evidence.
+- `container-failure-observation.md` is manual by design; it is not an automated chaos suite.

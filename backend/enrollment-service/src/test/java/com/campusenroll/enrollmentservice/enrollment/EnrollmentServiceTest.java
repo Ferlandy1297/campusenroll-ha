@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 
 class EnrollmentServiceTest {
 
@@ -65,6 +66,24 @@ class EnrollmentServiceTest {
         assertThatThrownBy(() -> enrollmentService.create(request))
                 .isInstanceOf(ConflictException.class)
                 .hasMessage("An active enrollment already exists for this student and section");
+    }
+
+    @Test
+    void shouldNotPublishEventWhenDatabaseConstraintRejectsCreate() {
+        RepositoryState state = new RepositoryState();
+        state.saveAndFlushException = new DataIntegrityViolationException("duplicate active enrollment");
+        RecordingEnrollmentEventPublisher eventPublisher = new RecordingEnrollmentEventPublisher();
+        EnrollmentService enrollmentService = new EnrollmentService(repository(state), eventPublisher);
+
+        CreateEnrollmentRequest request = new CreateEnrollmentRequest();
+        request.setStudentId(100L);
+        request.setSectionId(200L);
+
+        assertThatThrownBy(() -> enrollmentService.create(request))
+                .isInstanceOf(ConflictException.class)
+                .hasMessage("An active enrollment already exists for this student and section");
+        assertThat(eventPublisher.publishedEnrollments).isEmpty();
+        assertThat(state.storage).isEmpty();
     }
 
     @Test
@@ -127,6 +146,7 @@ class EnrollmentServiceTest {
     private static final class RepositoryState {
         private final Map<Long, Enrollment> storage = new HashMap<>();
         private long sequence = 1L;
+        private RuntimeException saveAndFlushException;
     }
 
     private static final class RecordingEnrollmentEventPublisher implements EnrollmentEventPublisher {
@@ -155,12 +175,19 @@ class EnrollmentServiceTest {
                                 && enrollment.getStatus() == args[2]);
                 case "findAll" -> new ArrayList<>(state.storage.values());
                 case "findById" -> Optional.ofNullable(state.storage.get(args[0]));
-                case "save" -> persist(state, (Enrollment) args[0]);
+                case "save", "saveAndFlush" -> save((Enrollment) args[0]);
                 case "toString" -> "EnrollmentRepositoryTestProxy";
                 case "hashCode" -> System.identityHashCode(proxy);
                 case "equals" -> proxy == args[0];
                 default -> throw new UnsupportedOperationException("Unsupported repository method: " + method.getName());
             };
+        }
+
+        private Enrollment save(Enrollment enrollment) {
+            if (state.saveAndFlushException != null) {
+                throw state.saveAndFlushException;
+            }
+            return persist(state, enrollment);
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.campusenroll.courseservice.catalog.service;
 
+import com.campusenroll.courseservice.catalog.cache.CatalogCacheNames;
 import com.campusenroll.courseservice.catalog.dto.CourseRequest;
 import com.campusenroll.courseservice.catalog.dto.CourseResponse;
 import com.campusenroll.courseservice.catalog.exception.ResourceConflictException;
@@ -7,6 +8,8 @@ import com.campusenroll.courseservice.catalog.exception.ResourceNotFoundExceptio
 import com.campusenroll.courseservice.catalog.model.Course;
 import com.campusenroll.courseservice.catalog.repository.CourseRepository;
 import java.util.List;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +23,7 @@ public class CourseService {
         this.courseRepository = courseRepository;
     }
 
+    @Cacheable(cacheNames = CatalogCacheNames.COURSES)
     @Transactional(readOnly = true)
     public List<CourseResponse> getCourses() {
         return courseRepository.findAll(Sort.by("courseCode").ascending()).stream()
@@ -32,6 +36,7 @@ public class CourseService {
         return toResponse(findCourse(id));
     }
 
+    @CacheEvict(cacheNames = CatalogCacheNames.COURSES, allEntries = true)
     @Transactional
     public CourseResponse createCourse(CourseRequest request) {
         String normalizedCourseCode = normalize(request.courseCode());

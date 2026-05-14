@@ -1,5 +1,6 @@
 package com.campusenroll.courseservice.catalog.service;
 
+import com.campusenroll.courseservice.catalog.cache.CatalogCacheNames;
 import com.campusenroll.courseservice.catalog.dto.ScheduleBlockRequest;
 import com.campusenroll.courseservice.catalog.dto.ScheduleBlockResponse;
 import com.campusenroll.courseservice.catalog.dto.SectionRequest;
@@ -9,6 +10,8 @@ import com.campusenroll.courseservice.catalog.model.ScheduleBlock;
 import com.campusenroll.courseservice.catalog.model.Section;
 import com.campusenroll.courseservice.catalog.repository.SectionRepository;
 import java.util.List;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,10 +28,11 @@ public class SectionService {
             CourseService courseService,
             AcademicPeriodService academicPeriodService) {
         this.sectionRepository = sectionRepository;
-        this.courseService = courseService;
-        this.academicPeriodService = academicPeriodService;
+            this.courseService = courseService;
+            this.academicPeriodService = academicPeriodService;
     }
 
+    @Cacheable(cacheNames = CatalogCacheNames.SECTIONS)
     @Transactional(readOnly = true)
     public List<SectionResponse> getSections() {
         return sectionRepository.findAll(Sort.by("sectionCode").ascending()).stream()
@@ -36,6 +40,7 @@ public class SectionService {
                 .toList();
     }
 
+    @CacheEvict(cacheNames = CatalogCacheNames.SECTIONS, allEntries = true)
     @Transactional
     public SectionResponse createSection(SectionRequest request) {
         validateScheduleBlocks(request.scheduleBlocks());
