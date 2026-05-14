@@ -2,58 +2,34 @@
 
 ## Proposito
 
-`docs/final/` centraliza la fuente documental para armar el PDF final de la `Revision Tecnica Avanzada del Proyecto Final` de CampusEnroll HA.
+`docs/final/` agrupa la fuente documental para el paquete final de entrega de CampusEnroll HA despues de S19.
 
-Esta carpeta no reemplaza la evidencia manual ni los artefactos tecnicos existentes del repositorio. Su funcion es consolidar:
+## Archivos
 
-- el documento principal listo para exportar
-- la guia de exportacion a PDF
-- el mapa de placeholders para capturas
+- `CHECKPOINT_1_PDF_READY.md`
+  - documento principal listo para copiar a Word, Google Docs o exportar con una herramienta Markdown
+- `EVIDENCE_PLACEHOLDERS.md`
+  - mapa de capturas y salidas sugeridas
+- `PDF_EXPORT_GUIDE.md`
+  - pasos de exportacion y checklist final
 
-## Archivo principal
+## Enfoque de esta carpeta
 
-El archivo principal es:
+El contenido ya esta alineado con el estado real del repo:
 
-- `docs/final/CHECKPOINT_1_PDF_READY.md`
+- Redis si esta implementado en `course-service`
+- RabbitMQ si participa en publicacion y consumo de eventos de evidencia
+- Postman sigue siendo el cliente actual
+- Docker Compose sigue levantando solo infraestructura
+- Prometheus y Grafana siguen siendo infraestructura disponible con integracion parcial
 
-Ese archivo debe usarse como base para:
-
-- copiar a Word o Google Docs
-- exportar con una extension de Markdown
-- exportar con Pandoc si ya esta instalado
-
-## Relacion con otras carpetas de documentacion
+## Relacion con otras carpetas
 
 - `docs/checkpoint/`
-  - contiene la revision tecnica base ya redactada para el checkpoint previo
-  - sirve como antecedente tecnico del contenido final
-- `docs/diagrams/`
-  - contiene las fuentes `.puml` y `.dbml`
-  - se usa para renderizar los diagramas que luego se insertan en el PDF
+  - resumen tecnico corto del estado actual
 - `docs/demo/`
-  - contiene guion, comandos y checklist de evidencia para preparar la exposicion y las capturas
-  - complementa el PDF, pero no lo sustituye
-- `docs/final/`
-  - consolida el documento final PDF-ready y la guia operativa para cerrarlo
-
-## Archivos de esta carpeta
-
-- `docs/final/CHECKPOINT_1_PDF_READY.md`
-  - fuente principal del PDF final
-- `docs/final/PDF_EXPORT_GUIDE.md`
-  - instrucciones para renderizar diagramas, insertar capturas y exportar a PDF
-- `docs/final/EVIDENCE_PLACEHOLDERS.md`
-  - listado de capturas sugeridas y donde insertarlas
-- `docs/final/README.md`
-  - descripcion de esta carpeta
-
-## Nota importante sobre screenshots
-
-Las capturas reales deben obtenerse manualmente. Este segmento no genera screenshots por si solo y no debe inventar evidencia visual.
-
-Antes de exportar el PDF final:
-
-1. capturar las evidencias reales
-2. renderizar los diagramas
-3. insertar imagenes donde corresponda
-4. revisar que el documento no afirme funcionalidades no implementadas
+  - runbook de demo y evidencia en PowerShell
+- `postman/`
+  - coleccion y environment local
+- `infra/k6/`
+  - scripts y guia de pruebas finales
