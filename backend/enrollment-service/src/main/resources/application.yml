@@ -5,10 +5,20 @@ spring:
     url: ${ENROLLMENT_SERVICE_DATASOURCE_URL:jdbc:postgresql://localhost:5432/campusenroll}
     username: ${ENROLLMENT_SERVICE_DATASOURCE_USERNAME:campus}
     password: ${ENROLLMENT_SERVICE_DATASOURCE_PASSWORD:campus_password}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
   jpa:
     hibernate:
       ddl-auto: update
     open-in-view: false
+
+app:
+  messaging:
+    exchange: ${APP_EVENTS_EXCHANGE:campusenroll.events}
+    enrollment-created-routing-key: ${APP_ENROLLMENT_CREATED_ROUTING_KEY:enrollment.created}
 
 server:
   port: ${SERVER_PORT:8083}

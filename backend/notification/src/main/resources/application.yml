@@ -1,6 +1,21 @@
 spring:
   application:
     name: notification
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        missing-queues-fatal: false
+
+app:
+  messaging:
+    exchange: ${APP_EVENTS_EXCHANGE:campusenroll.events}
+    notification-queue: ${APP_NOTIFICATION_QUEUE:notification.events}
+    enrollment-created-routing-key: ${APP_ENROLLMENT_CREATED_ROUTING_KEY:enrollment.created}
+    billing-status-changed-routing-key: ${APP_BILLING_STATUS_CHANGED_ROUTING_KEY:billing.status.changed}
 
 server:
   port: ${SERVER_PORT:8085}

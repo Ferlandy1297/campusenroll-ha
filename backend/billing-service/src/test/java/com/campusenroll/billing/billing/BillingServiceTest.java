@@ -8,6 +8,7 @@ import com.campusenroll.billing.billing.dto.CreateBillingRequest;
 import com.campusenroll.billing.billing.dto.UpdateBillingStatusRequest;
 import com.campusenroll.billing.error.ConflictException;
 import com.campusenroll.billing.error.ResourceNotFoundException;
+import com.campusenroll.billing.messaging.BillingEventPublisher;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -26,7 +27,8 @@ class BillingServiceTest {
     @Test
     void shouldCreateBilling() {
         RepositoryState state = new RepositoryState();
-        BillingService billingService = new BillingService(repository(state));
+        RecordingBillingEventPublisher eventPublisher = new RecordingBillingEventPublisher();
+        BillingService billingService = new BillingService(repository(state), eventPublisher);
 
         CreateBillingRequest request = new CreateBillingRequest();
         request.setEnrollmentId(100L);
@@ -44,12 +46,13 @@ class BillingServiceTest {
         assertThat(response.createdAt()).isNotNull();
         assertThat(state.storage.values()).hasSize(1);
         assertThat(new ArrayList<>(state.storage.values()).get(0).getPendingEnrollmentKey()).isEqualTo(100L);
+        assertThat(eventPublisher.publishedEvents).isEmpty();
     }
 
     @Test
     void shouldRejectDuplicatePendingBillingOnCreate() {
         RepositoryState state = new RepositoryState();
-        BillingService billingService = new BillingService(repository(state));
+        BillingService billingService = new BillingService(repository(state), new RecordingBillingEventPublisher());
 
         Billing existing = new Billing();
         existing.setEnrollmentId(100L);
@@ -74,7 +77,7 @@ class BillingServiceTest {
     @Test
     void shouldAllowNonPendingBillingForSameEnrollment() {
         RepositoryState state = new RepositoryState();
-        BillingService billingService = new BillingService(repository(state));
+        BillingService billingService = new BillingService(repository(state), new RecordingBillingEventPublisher());
 
         Billing existing = new Billing();
         existing.setEnrollmentId(100L);
@@ -99,7 +102,8 @@ class BillingServiceTest {
 
     @Test
     void shouldRejectMissingBillingOnStatusUpdate() {
-        BillingService billingService = new BillingService(repository(new RepositoryState()));
+        BillingService billingService =
+                new BillingService(repository(new RepositoryState()), new RecordingBillingEventPublisher());
 
         UpdateBillingStatusRequest request = new UpdateBillingStatusRequest();
         request.setStatus(BillingStatus.CANCELLED);
@@ -112,7 +116,7 @@ class BillingServiceTest {
     @Test
     void shouldRejectStatusChangeToPendingWhenAnotherPendingBillingExists() {
         RepositoryState state = new RepositoryState();
-        BillingService billingService = new BillingService(repository(state));
+        BillingService billingService = new BillingService(repository(state), new RecordingBillingEventPublisher());
 
         Billing target = new Billing();
         target.setEnrollmentId(100L);
@@ -143,7 +147,8 @@ class BillingServiceTest {
     @Test
     void shouldClearPendingEnrollmentKeyWhenStatusChangesFromPending() {
         RepositoryState state = new RepositoryState();
-        BillingService billingService = new BillingService(repository(state));
+        RecordingBillingEventPublisher eventPublisher = new RecordingBillingEventPublisher();
+        BillingService billingService = new BillingService(repository(state), eventPublisher);
 
         Billing existing = new Billing();
         existing.setEnrollmentId(100L);
@@ -161,6 +166,33 @@ class BillingServiceTest {
 
         assertThat(response.status()).isEqualTo(BillingStatus.PAID);
         assertThat(state.storage.get(existing.getId()).getPendingEnrollmentKey()).isNull();
+        assertThat(eventPublisher.publishedEvents).hasSize(1);
+        assertThat(eventPublisher.publishedEvents.get(0).previousStatus).isEqualTo(BillingStatus.PENDING);
+        assertThat(eventPublisher.publishedEvents.get(0).newStatus).isEqualTo(BillingStatus.PAID);
+    }
+
+    @Test
+    void shouldNotPublishEventWhenStatusDoesNotChange() {
+        RepositoryState state = new RepositoryState();
+        RecordingBillingEventPublisher eventPublisher = new RecordingBillingEventPublisher();
+        BillingService billingService = new BillingService(repository(state), eventPublisher);
+
+        Billing existing = new Billing();
+        existing.setEnrollmentId(100L);
+        existing.setAmount(new BigDecimal("99.99"));
+        existing.setCurrency("USD");
+        existing.setStatus(BillingStatus.PENDING);
+        existing.setCreatedAt(OffsetDateTime.now().minusHours(1));
+        existing.syncPendingEnrollmentKey();
+        persist(state, existing);
+
+        UpdateBillingStatusRequest request = new UpdateBillingStatusRequest();
+        request.setStatus(BillingStatus.PENDING);
+
+        BillingResponse response = billingService.updateStatus(existing.getId(), request);
+
+        assertThat(response.status()).isEqualTo(BillingStatus.PENDING);
+        assertThat(eventPublisher.publishedEvents).isEmpty();
     }
 
     private static BillingRepository repository(RepositoryState state) {
@@ -183,6 +215,17 @@ class BillingServiceTest {
         private final Map<Long, Billing> storage = new HashMap<>();
         private long sequence = 1L;
     }
+
+    private static final class RecordingBillingEventPublisher implements BillingEventPublisher {
+        private final List<PublishedStatusChange> publishedEvents = new ArrayList<>();
+
+        @Override
+        public void publishBillingStatusChanged(Billing billing, BillingStatus previousStatus, BillingStatus newStatus) {
+            publishedEvents.add(new PublishedStatusChange(billing.getId(), previousStatus, newStatus));
+        }
+    }
+
+    private record PublishedStatusChange(Long billingId, BillingStatus previousStatus, BillingStatus newStatus) {}
 
     private static final class BillingRepositoryHandler implements InvocationHandler {
 

@@ -6,6 +6,7 @@ Spring Boot billing-service for the CampusEnroll HA billing domain segment.
 
 This segment includes:
 - billing entity, repository, service, DTOs, and controller endpoints
+- RabbitMQ event publication for billing status changes
 - local validation and simple error handling for billing requests
 - one health endpoint at `GET /health`
 - focused unit tests for controller and service behavior
@@ -13,7 +14,8 @@ This segment includes:
 This segment does not include:
 - cross-service HTTP calls
 - payment gateway integration
-- messaging, sagas, or compensation workflows
+- automatic billing creation from enrollment events
+- sagas, retries, DLQs, or compensation workflows
 - authentication or authorization
 - Docker Compose changes
 - database migrations
@@ -28,6 +30,7 @@ This segment does not include:
 - Spring Validation
 - Spring Data JPA
 - PostgreSQL driver
+- Spring AMQP
 
 ## Run Locally
 
@@ -46,6 +49,12 @@ Override with:
 - `BILLING_SERVICE_DATASOURCE_URL`
 - `BILLING_SERVICE_DATASOURCE_USERNAME`
 - `BILLING_SERVICE_DATASOURCE_PASSWORD`
+- `RABBITMQ_HOST`
+- `RABBITMQ_PORT`
+- `RABBITMQ_USERNAME`
+- `RABBITMQ_PASSWORD`
+- `APP_EVENTS_EXCHANGE`
+- `APP_BILLING_STATUS_CHANGED_ROUTING_KEY`
 
 ## Billing API
 
@@ -86,6 +95,24 @@ Example create payload:
 }
 ```
 
+## RabbitMQ Event Flow
+
+On successful `PATCH /api/billings/{id}/status`, the service publishes `BillingStatusChangedEvent` when the status value actually changes.
+
+- Exchange: `campusenroll.events`
+- Routing key: `billing.status.changed`
+
+Event fields:
+
+- `eventId`
+- `billingId`
+- `enrollmentId`
+- `previousStatus`
+- `newStatus`
+- `occurredAt`
+
+If RabbitMQ is unavailable, the REST update still succeeds and the publish failure is logged.
+
 Simple error response shape:
 
 ```json
@@ -113,5 +140,4 @@ mvn test
 ## Next Segments
 
 - add migrations for the `billings` table
-- define service contracts and domain events
-- integrate billing with enrollment and payment workflows later
+- integrate automatic billing creation and stronger delivery guarantees later

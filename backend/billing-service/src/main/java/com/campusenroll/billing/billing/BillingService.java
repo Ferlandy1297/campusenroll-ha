@@ -3,6 +3,7 @@ package com.campusenroll.billing.billing;
 import com.campusenroll.billing.billing.dto.BillingResponse;
 import com.campusenroll.billing.billing.dto.CreateBillingRequest;
 import com.campusenroll.billing.billing.dto.UpdateBillingStatusRequest;
+import com.campusenroll.billing.messaging.BillingEventPublisher;
 import com.campusenroll.billing.error.ConflictException;
 import com.campusenroll.billing.error.ResourceNotFoundException;
 import java.time.OffsetDateTime;
@@ -16,9 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class BillingService {
 
     private final BillingRepository billingRepository;
+    private final BillingEventPublisher billingEventPublisher;
 
-    public BillingService(BillingRepository billingRepository) {
+    public BillingService(BillingRepository billingRepository, BillingEventPublisher billingEventPublisher) {
         this.billingRepository = billingRepository;
+        this.billingEventPublisher = billingEventPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -54,6 +57,7 @@ public class BillingService {
     @Transactional
     public BillingResponse updateStatus(Long id, UpdateBillingStatusRequest request) {
         Billing billing = findBilling(id);
+        BillingStatus previousStatus = billing.getStatus();
         BillingStatus nextStatus = request.getStatus();
 
         if (nextStatus == BillingStatus.PENDING
@@ -64,7 +68,11 @@ public class BillingService {
 
         billing.setStatus(nextStatus);
         billing.syncPendingEnrollmentKey();
-        return saveBilling(billing);
+        BillingResponse response = saveBilling(billing);
+        if (previousStatus != nextStatus) {
+            billingEventPublisher.publishBillingStatusChanged(billing, previousStatus, nextStatus);
+        }
+        return response;
     }
 
     private BillingResponse saveBilling(Billing billing) {

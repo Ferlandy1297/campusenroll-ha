@@ -3,6 +3,7 @@ package com.campusenroll.enrollmentservice.enrollment;
 import com.campusenroll.enrollmentservice.enrollment.dto.CreateEnrollmentRequest;
 import com.campusenroll.enrollmentservice.enrollment.dto.EnrollmentResponse;
 import com.campusenroll.enrollmentservice.enrollment.dto.UpdateEnrollmentStatusRequest;
+import com.campusenroll.enrollmentservice.messaging.EnrollmentEventPublisher;
 import com.campusenroll.enrollmentservice.error.ConflictException;
 import com.campusenroll.enrollmentservice.error.ResourceNotFoundException;
 import java.time.OffsetDateTime;
@@ -15,9 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class EnrollmentService {
 
     private final EnrollmentRepository enrollmentRepository;
+    private final EnrollmentEventPublisher enrollmentEventPublisher;
 
-    public EnrollmentService(EnrollmentRepository enrollmentRepository) {
+    public EnrollmentService(
+            EnrollmentRepository enrollmentRepository,
+            EnrollmentEventPublisher enrollmentEventPublisher) {
         this.enrollmentRepository = enrollmentRepository;
+        this.enrollmentEventPublisher = enrollmentEventPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -46,7 +51,9 @@ public class EnrollmentService {
         enrollment.setEnrolledAt(OffsetDateTime.now());
 
         try {
-            return toResponse(enrollmentRepository.save(enrollment));
+            Enrollment savedEnrollment = enrollmentRepository.save(enrollment);
+            enrollmentEventPublisher.publishEnrollmentCreated(savedEnrollment);
+            return toResponse(savedEnrollment);
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException("An enrollment already exists for this student and section");
         }
