@@ -2,66 +2,82 @@
 
 ## Estado actual
 
-CampusEnroll HA ya no es un esqueleto S00. El repositorio contiene implementacion funcional para:
+CampusEnroll HA ya tiene una base funcional para:
 
 - `student-service` con endpoints de estudiantes
-- `course-service` con endpoints de catalogo y cache Redis para listas de cursos, periodos y secciones
-- `enrollment-service` con endpoints de inscripcion y publicacion de `EnrollmentCreatedEvent` en RabbitMQ
-- `billing-service` con endpoints de cobro y publicacion de `BillingStatusChangedEvent` en RabbitMQ
-- `notification` como consumidor de eventos RabbitMQ para evidencia y logs
-- `db/schema.sql` y `db/data.sql` como carga determinista de PostgreSQL
+- `course-service` con catalogo academico y cache Redis
+- `enrollment-service` con inscripciones y publicacion de `EnrollmentCreatedEvent`
+- `billing-service` con cobros y publicacion de `BillingStatusChangedEvent`
+- `notification` como consumidor RabbitMQ para evidencia y logs
+- `db/schema.sql` y `db/data.sql` para carga determinista de PostgreSQL
 - `postman/` como cliente operativo actual
-- `infra/k6/` como paquete de smoke, 50,000 requests, concurrencia y observacion de falla
+- `infra/k6/` como paquete de validacion final
 
-Estado honesto del proyecto:
+La entrega actual ya no depende solo del flujo local con Maven. El repo ahora soporta dos modos de ejecucion sin reemplazar el workflow existente.
 
-- Docker Compose levanta solo infraestructura compartida: PostgreSQL, Redis, RabbitMQ, Prometheus y Grafana.
-- Los servicios Spring Boot se ejecutan localmente con `mvn spring-boot:run`.
-- No existe frontend.
-- `gateway-service` sigue siendo una referencia arquitectonica, no el entrypoint operativo del flujo actual.
-- Prometheus y Grafana estan disponibles como infraestructura, pero el repositorio todavia no entrega metricas de aplicacion scrapeadas ni dashboards provisionados listos.
+## Modos de ejecucion
 
-## Estructura
+### 1. Standard mode
 
-- `backend/`
-  - servicios Spring Boot por dominio
-- `db/`
-  - esquema PostgreSQL y datos demo
-- `docs/checkpoint/`
-  - resumen tecnico del estado actual
-- `docs/demo/`
-  - guia de demo, comandos PowerShell y checklist de evidencia
-- `docs/final/`
-  - documento PDF-ready, placeholders y guia de exportacion
-- `infra/k6/`
-  - scripts y runbook de pruebas finales
-- `postman/`
-  - coleccion y environment local
+`docker-compose.yml` sigue levantando solo infraestructura compartida:
 
-## Flujo de validacion local
+- PostgreSQL
+- Redis
+- RabbitMQ
+- Prometheus
+- Grafana
 
-La validacion final del repositorio debe seguir este orden:
-
-1. Ajustar `.env` si hay conflicto con PostgreSQL.
-   - El `.env` actual del repo usa `POSTGRES_PORT=55432`.
-   - Si se mantiene `5432`, los `jdbc:postgresql://localhost:PUERTO/campusenroll` de los servicios deben coincidir con ese puerto.
-2. Levantar infraestructura:
+Comando base:
 
 ```powershell
 docker compose up -d postgres redis rabbitmq prometheus grafana
 docker compose ps
 ```
 
-3. Cargar base de datos determinista:
+Este modo mantiene intacto el flujo local actual con `mvn spring-boot:run`.
+
+### 2. HA readiness mode
+
+`docker-compose.apps.yml` agrega los cinco servicios Spring Boot como contenedores:
+
+- `student-service` en `8081`
+- `course-service` en `8082`
+- `enrollment-service` en `8083`
+- `billing-service` en `8084`
+- `notification` en `8085`
+
+Comando de arranque:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.apps.yml ps
+```
+
+Importante:
+
+- este modo es `HA-ready` y demostrable para la entrega, no alta disponibilidad productiva
+- la primera ejecucion sobre un volumen PostgreSQL nuevo todavia requiere cargar `db/schema.sql` y `db/data.sql`
+- el workflow con Maven local sigue siendo valido y no fue removido
+
+## Flujo local recomendado
+
+1. Confirmar `.env`.
+2. Levantar infraestructura compartida.
+3. Cargar base de datos demo si el volumen es nuevo.
+4. Elegir uno de estos caminos:
+   - ejecutar servicios localmente con `mvn spring-boot:run`
+   - ejecutar servicios con `docker-compose.apps.yml`
+5. Verificar salud con `GET /health`.
+6. Ejecutar Postman, Redis, RabbitMQ, k6 y la evidencia final.
+
+Carga de base de datos:
 
 ```powershell
 Get-Content -Raw .\db\schema.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
 Get-Content -Raw .\db\data.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
 ```
 
-4. Ejecutar los servicios en terminales separadas con `mvn spring-boot:run`.
-   - Ver la secuencia exacta en `docs/demo/DEMO_COMMANDS.md`.
-5. Verificar salud:
+Health checks:
 
 ```powershell
 curl.exe http://localhost:8081/health
@@ -71,24 +87,37 @@ curl.exe http://localhost:8084/health
 curl.exe http://localhost:8085/health
 ```
 
-6. Ejecutar el flujo funcional y las pruebas finales.
-   - Postman: `postman/README.md`
-   - Demo y evidencia: `docs/demo/`
-   - Documento final: `docs/final/`
-   - k6 y falla controlada: `infra/k6/README.md`
+## Que esta implementado
+
+- `restart: unless-stopped` en infraestructura y servicios de aplicacion en modo Compose
+- healthchecks para PostgreSQL, Redis, RabbitMQ, Prometheus, Grafana y los cinco servicios Spring Boot
+- contenedorizacion de los cinco servicios de negocio mediante `docker-compose.apps.yml`
+- Redis real en `course-service`
+- RabbitMQ real para publicacion y consumo de eventos de evidencia
+- k6 como paquete de validacion final
+- Prometheus y Grafana como infraestructura disponible
+
+## Que sigue siendo mejora futura
+
+- cluster multinodo real
+- replicacion o failover de PostgreSQL
+- Redis cluster
+- RabbitMQ cluster
+- balanceador real con replicas multiples
+- Kubernetes o Docker Swarm
+- scrapeo Prometheus de microservicios y dashboards Grafana listos
+- gateway operativo como entrypoint real
 
 ## URLs utiles
 
-- RabbitMQ Management UI: `http://localhost:15672` con `guest/guest`
+- RabbitMQ Management UI: `http://localhost:15672`
 - Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3000` con `admin/admin` salvo cambio local
+- Grafana: `http://localhost:3000`
 
 ## Documentacion recomendada
 
-- `docs/checkpoint/CHECKPOINT_1_REVISION_TECNICA.md`
-- `docs/demo/DEMO_SCRIPT.md`
 - `docs/demo/DEMO_COMMANDS.md`
 - `docs/demo/EVIDENCE_CHECKLIST.md`
 - `docs/final/CHECKPOINT_1_PDF_READY.md`
 - `docs/final/EVIDENCE_PLACEHOLDERS.md`
-- `docs/final/PDF_EXPORT_GUIDE.md`
+- `infra/k6/README.md`

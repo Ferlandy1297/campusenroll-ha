@@ -6,91 +6,108 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 - Curso y seccion: `[Completar]`
 - Proyecto: CampusEnroll HA
-- Segmento: S19
-- Rol responsable: final validation, observability, demo, and delivery documentation owner
+- Segmento: S20
+- Rol responsable: high availability readiness and Docker Compose hardening owner
 - Docente: `[Completar]`
 - Integrantes: `[Completar]`
 - Fecha: `[Completar]`
 - URL del repositorio: `[Completar]`
 
-[Insertar evidencia E01 - vista general del repositorio o portada final]
+[Insertar evidencia E01 - vista general del repositorio]
 
 ## 2. Resumen ejecutivo
 
-CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. El proyecto tambien dispone de cache Redis para lecturas de catalogo, publicacion y consumo de eventos RabbitMQ orientados a evidencia, coleccion Postman para validacion manual, scripts k6 para pruebas finales y un entorno local de infraestructura compartida con PostgreSQL, Redis, RabbitMQ, Prometheus y Grafana.
+CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. En S20 el repositorio agrega una capa segura de readiness para alta disponibilidad local: los cinco microservicios Spring Boot ahora pueden ejecutarse como contenedores mediante un archivo Compose adicional, mientras `docker-compose.yml` conserva su papel original de infraestructura compartida.
 
-Estado honesto del proyecto:
+Mensaje central:
+
+`CampusEnroll HA ya es demostrable como plataforma local HA-ready, pero no debe presentarse como una solucion de alta disponibilidad productiva.`
 
 ### Implementado actualmente
 
-- `student-service` expone endpoints de estudiantes.
-- `course-service` expone endpoints de catalogo y usa Redis como cache de lectura.
-- `enrollment-service` expone endpoints de inscripcion y publica `EnrollmentCreatedEvent`.
-- `billing-service` expone endpoints de cobro y publica `BillingStatusChangedEvent`.
-- `notification` consume ambos eventos y registra evidencia en logs.
-- `db/schema.sql` y `db/data.sql` permiten reiniciar el entorno demo.
-- `postman/` es el cliente operativo actual para la demostracion.
-- `infra/k6/` ya contiene pruebas de smoke, 50,000 requests, concurrencia y falla controlada.
+- `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` tienen Dockerfile operativo.
+- `docker-compose.yml` mantiene infraestructura compartida para PostgreSQL, Redis, RabbitMQ, Prometheus y Grafana.
+- `docker-compose.apps.yml` agrega los cinco servicios de aplicacion en puertos `8081` a `8085`.
+- Infraestructura y aplicaciones usan `restart: unless-stopped`.
+- Infraestructura y aplicaciones exponen healthchecks verificables.
+- `course-service` usa Redis como cache real.
+- `enrollment-service` y `billing-service` publican eventos RabbitMQ.
+- `notification` consume esos eventos y deja evidencia en logs.
+- `postman/` sigue siendo el cliente operativo actual.
+- `infra/k6/` sigue siendo el paquete de validacion final.
 
 ### Configurado o preparado
 
-- Docker Compose levanta PostgreSQL, Redis, RabbitMQ, Prometheus y Grafana.
-- RabbitMQ Management UI queda disponible en `http://localhost:15672`.
-- Prometheus queda disponible en `http://localhost:9090`.
-- Grafana queda disponible en `http://localhost:3000`.
+- Prometheus y Grafana estan disponibles como infraestructura local.
+- Compose ya permite demostrar arranque coordinado, estado de salud y recuperacion manual de servicios.
 
 ### Pendiente o mejora futura
 
-- frontend
+- replicas multiples por servicio
+- balanceador real
+- cluster Redis
+- cluster RabbitMQ
+- replicacion y failover de PostgreSQL
+- Kubernetes o Docker Swarm
+- scrapeo Prometheus de microservicios y dashboards Grafana listos
 - gateway operativo como entrypoint real
-- validacion cruzada automatica entre servicios
-- generacion automatica de cobro a partir de la inscripcion
-- scrapeo Prometheus de los microservicios y dashboards Grafana listos
-- estrategia real de alta disponibilidad con replicas y failover
 
-## 3. Flujo critico
+## 3. Objetivo tecnico de S20
 
-Flujo critico de negocio para la entrega:
+El objetivo de este segmento no fue rehacer la arquitectura ni reemplazar el flujo Maven existente. El objetivo fue endurecer la postura local de alta disponibilidad demostrable con cambios pequenos y revisables:
 
-`Inscripcion de estudiante a una seccion y generacion de cobro asociado`
-
-Forma actual de demostrarlo:
-
-1. levantar infraestructura
-2. cargar base de datos
-3. ejecutar servicios localmente
-4. crear inscripcion
-5. evidenciar conflicto por duplicidad de inscripcion
-6. crear cobro
-7. evidenciar conflicto por cobro pendiente duplicado
-8. cambiar el estado del cobro a `PAID`
-9. observar Redis, RabbitMQ y logs
+1. conservar `docker-compose.yml` como modo estandar de infraestructura
+2. agregar un modo Compose adicional para aplicaciones
+3. incorporar restart policies y healthchecks verificables
+4. dejar evidencia clara de recuperacion por reinicio y validacion con k6
 
 ## 4. Arquitectura operativa actual
 
-La arquitectura real de esta entrega no debe explicarse como una plataforma totalmente integrada de extremo a extremo. El cliente vigente es Postman y consume URLs directas por servicio. Docker Compose solo inicia infraestructura compartida. Los servicios Spring Boot se ejecutan fuera de Compose con `mvn spring-boot:run`.
+La entrega final debe describirse con dos modos de ejecucion, no con una sola narrativa:
+
+### Standard mode
+
+- `docker-compose.yml` levanta solo PostgreSQL, Redis, RabbitMQ, Prometheus y Grafana
+- los microservicios pueden seguir ejecutandose localmente con `mvn spring-boot:run`
+
+### HA readiness mode
+
+- `docker-compose.yml` + `docker-compose.apps.yml` levantan infraestructura y los cinco servicios Spring Boot
+- cada servicio usa hostnames internos Docker como `postgres`, `redis` y `rabbitmq`
+- cada servicio tiene restart policy y healthcheck HTTP contra `GET /health`
 
 Tabla de componentes:
 
 | Componente | Estado actual | Comentario |
 | --- | --- | --- |
-| `student-service` | Implementado | CRUD basico y cambio de estado de estudiantes |
-| `course-service` | Implementado | Catalogo academico con cache Redis |
-| `enrollment-service` | Implementado | Inscripciones y publicacion de evento de creacion |
-| `billing-service` | Implementado | Cobros y publicacion de evento de cambio de estado |
-| `notification` | Implementado para evidencia | Consumidor de eventos y logs |
+| `student-service` | Implementado | CRUD basico y modo contenedor disponible |
+| `course-service` | Implementado | Catalogo academico, cache Redis y modo contenedor |
+| `enrollment-service` | Implementado | Inscripciones, eventos RabbitMQ y modo contenedor |
+| `billing-service` | Implementado | Cobros, eventos RabbitMQ y modo contenedor |
+| `notification` | Implementado para evidencia | Consumidor RabbitMQ y modo contenedor |
 | `gateway-service` | Preparado, no operativo | No participa en la demo actual |
-| PostgreSQL | Implementado en el flujo | Persistencia principal |
-| Redis | Implementado en catalogo | Cache de lectura |
-| RabbitMQ | Implementado para evidencia | Broker de eventos |
-| Prometheus | Parcial | Infra disponible; no scrapea los microservicios |
-| Grafana | Parcial | Infra disponible; sin dashboards provisionados en repo |
+| PostgreSQL | Implementado | Persistencia principal y healthcheck |
+| Redis | Implementado | Cache de lectura y healthcheck |
+| RabbitMQ | Implementado | Broker de eventos y healthcheck |
+| Prometheus | Parcial | Infra disponible con healthcheck |
+| Grafana | Parcial | Infra disponible con healthcheck |
 
-[Insertar evidencia E02 - infraestructura arriba]
+[Insertar evidencia E02 - compose base e infraestructura]
+[Insertar evidencia E03 - compose apps con servicios Spring Boot]
 
-## 5. Infraestructura y puertos
+## 5. Infraestructura y endurecimiento Compose
 
-Valores relevantes del entorno local del repositorio:
+Los cambios de S20 se enfocan en robustecer el entorno local sin romper el workflow actual:
+
+- `restart: unless-stopped` para infraestructura y aplicaciones
+- healthcheck de PostgreSQL con `pg_isready`
+- healthcheck de Redis con `redis-cli ping`
+- healthcheck de RabbitMQ con `rabbitmq-diagnostics -q ping`
+- healthcheck de Prometheus con `http://localhost:9090/-/healthy`
+- healthcheck de Grafana con `http://localhost:3000/api/health`
+- healthchecks HTTP de servicios de aplicacion contra `GET /health`
+
+Puertos operativos relevantes:
 
 | Recurso | Puerto local | Nota |
 | --- | --- | --- |
@@ -98,17 +115,71 @@ Valores relevantes del entorno local del repositorio:
 | Redis | `6379` | por defecto |
 | RabbitMQ AMQP | `5672` | por defecto |
 | RabbitMQ UI | `15672` | `guest/guest` |
-| Prometheus | `9090` | UI local |
-| Grafana | `3000` | `admin/admin` salvo cambio local |
+| Prometheus | `9090` | UI local y health endpoint |
+| Grafana | `3000` | UI local y health endpoint |
+| `student-service` | `8081` | `GET /health` |
+| `course-service` | `8082` | `GET /health` |
+| `enrollment-service` | `8083` | `GET /health` |
+| `billing-service` | `8084` | `GET /health` |
+| `notification` | `8085` | `GET /health` |
 
-Si se decide usar `5432` para PostgreSQL, los `*_DATASOURCE_URL` de los servicios deben apuntar a `jdbc:postgresql://localhost:5432/campusenroll`.
+[Insertar evidencia E04 - healthchecks y restart policies]
 
-## 6. Base de datos y carga determinista
+## 6. Modo estandar
+
+El modo estandar sigue siendo la base segura para desarrollo local y validacion gradual.
+
+Comandos:
+
+```powershell
+docker compose up -d postgres redis rabbitmq prometheus grafana
+docker compose ps
+```
+
+Uso esperado:
+
+- levantar infraestructura compartida
+- cargar la base de datos demo
+- ejecutar microservicios con `mvn spring-boot:run` si el equipo prefiere el flujo local tradicional
+
+## 7. Modo HA readiness
+
+Este modo agrega los cinco microservicios como contenedores sin sustituir el modo estandar.
+
+Comandos:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.apps.yml ps
+```
+
+Asuncion importante:
+
+- si el volumen PostgreSQL es nuevo, primero debe ejecutarse la carga de `db/schema.sql` y `db/data.sql`
+
+Este modo es suficiente para demostrar:
+
+- empaquetado por servicio
+- arranque coordinado
+- healthchecks
+- restart policies
+- recuperacion manual de un servicio
+
+No es suficiente para afirmar:
+
+- replicas activas
+- failover automatico
+- balanceo de carga real
+- orquestacion multinodo
+
+[Insertar evidencia E05 - apps compose arriba]
+[Insertar evidencia E06 - estado healthy en servicios]
+
+## 8. Base de datos y carga determinista
 
 La base de datos se prepara con:
 
 ```powershell
-docker compose up -d postgres
 Get-Content -Raw .\db\schema.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
 Get-Content -Raw .\db\data.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
 ```
@@ -120,55 +191,15 @@ docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT i
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, section_code, academic_period_id, course_id, capacity, active FROM sections ORDER BY id;"
 ```
 
-El dataset demo deja una combinacion libre util para la demo: `studentId=1`, `sectionId=2`.
+El dataset demo deja una combinacion libre util para la validacion funcional:
 
-[Insertar evidencia E03 - carga de schema y seed]
-[Insertar evidencia E04 - consulta de datos demo]
+- `studentId=1`
+- `sectionId=2`
 
-## 7. Ejecucion local de microservicios
+[Insertar evidencia E07 - carga de schema y seed]
+[Insertar evidencia E08 - consulta de datos demo]
 
-Cada servicio se ejecuta en su propia terminal PowerShell.
-
-### student-service
-
-```powershell
-Set-Location .\backend\student-service
-$env:STUDENT_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
-mvn spring-boot:run
-```
-
-### course-service
-
-```powershell
-Set-Location .\backend\course-service
-$env:COURSE_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
-mvn spring-boot:run
-```
-
-### enrollment-service
-
-```powershell
-Set-Location .\backend\enrollment-service
-$env:ENROLLMENT_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
-mvn spring-boot:run
-```
-
-### billing-service
-
-```powershell
-Set-Location .\backend\billing-service
-$env:BILLING_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
-mvn spring-boot:run
-```
-
-### notification
-
-```powershell
-Set-Location .\backend\notification
-mvn spring-boot:run
-```
-
-## 8. Health endpoints
+## 9. Salud de servicios y healthchecks HTTP
 
 Verificacion:
 
@@ -182,9 +213,16 @@ curl.exe http://localhost:8085/health
 
 Cada servicio debe responder con un JSON que contenga su nombre y `status=UP`.
 
-[Insertar evidencia E05 - health checks]
+Interpretacion correcta:
 
-## 9. Validacion funcional con Postman
+- este healthcheck confirma disponibilidad basica del proceso
+- no equivale por si solo a failover real entre replicas
+
+[Insertar evidencia E09 - health checks HTTP]
+
+## 10. Validacion funcional con Postman
+
+Como no existe frontend, Postman sigue siendo el cliente operativo actual.
 
 Coleccion actual:
 
@@ -203,76 +241,16 @@ Orden recomendado:
 5. `04 - Billings`
 6. `05 - Notification`
 
-Que debe comprobarse:
+Flujo critico de negocio:
 
-- estudiantes: consulta, creacion y cambio de estado
-- catalogo: cursos, periodos y secciones
-- inscripciones: alta valida y conflicto `409`
-- cobros: alta valida y conflicto `409`
-- notificacion: salud y, fuera de Postman, evidencia de eventos por logs
+`Inscripcion de estudiante a una seccion y generacion de cobro asociado`
 
-[Insertar evidencia E06 - Postman importado]
-[Insertar evidencia E07 - respuesta de estudiantes]
-[Insertar evidencia E08 - respuesta de catalogo]
+[Insertar evidencia E10 - Postman importado]
+[Insertar evidencia E11 - flujo funcional principal]
 
-## 10. Verificacion detallada del flujo critico
+## 11. Redis cache
 
-### Crear inscripcion
-
-```powershell
-$enrollment = Invoke-RestMethod -Method Post -Uri 'http://localhost:8083/api/enrollments' -ContentType 'application/json' -Body (@{
-  studentId = 1
-  sectionId = 2
-} | ConvertTo-Json -Compress)
-$enrollment
-```
-
-### Repetir la misma inscripcion para obtener `409`
-
-```powershell
-curl.exe -i -X POST http://localhost:8083/api/enrollments -H "Content-Type: application/json" -d '{"studentId":1,"sectionId":2}'
-```
-
-### Crear cobro pendiente
-
-```powershell
-$billing = Invoke-RestMethod -Method Post -Uri 'http://localhost:8084/api/billings' -ContentType 'application/json' -Body (@{
-  enrollmentId = $enrollment.id
-  amount = 150.75
-  currency = 'USD'
-  status = 'PENDING'
-} | ConvertTo-Json -Compress)
-$billing
-```
-
-### Repetir el mismo cobro pendiente para obtener `409`
-
-```powershell
-$duplicateBillingBody = @{
-  enrollmentId = $enrollment.id
-  amount = 150.75
-  currency = 'USD'
-  status = 'PENDING'
-} | ConvertTo-Json -Compress
-curl.exe -i -X POST http://localhost:8084/api/billings -H "Content-Type: application/json" -d $duplicateBillingBody
-```
-
-### Cambiar el cobro a `PAID`
-
-```powershell
-Invoke-RestMethod -Method Patch -Uri "http://localhost:8084/api/billings/$($billing.id)/status" -ContentType 'application/json' -Body (@{
-  status = 'PAID'
-} | ConvertTo-Json -Compress)
-```
-
-[Insertar evidencia E09 - inscripcion creada]
-[Insertar evidencia E10 - conflicto de inscripcion]
-[Insertar evidencia E11 - cobro creado]
-[Insertar evidencia E12 - conflicto de cobro]
-
-## 11. Verificacion de Redis cache
-
-`course-service` ya utiliza Redis para las listas de catalogo.
+`course-service` ya utiliza Redis para listas de catalogo.
 
 Pasos:
 
@@ -289,11 +267,11 @@ Lo que debe observarse:
 - respuestas correctas de `GET /api/courses`
 - llaves `courses::*` visibles
 
-[Insertar evidencia E13 - llaves Redis]
+[Insertar evidencia E12 - llaves Redis]
 
-## 12. Verificacion de RabbitMQ y notification
+## 12. RabbitMQ y notification
 
-RabbitMQ no debe presentarse como una idea futura: hoy ya interviene en el flujo de evidencia.
+RabbitMQ ya participa en el flujo de evidencia del repositorio.
 
 UI:
 
@@ -319,43 +297,10 @@ Logs esperados:
   - `Enrollment created event received ...`
   - `Billing status changed event received ...`
 
-Nota importante:
+[Insertar evidencia E13 - RabbitMQ bindings]
+[Insertar evidencia E14 - logs de publicacion y consumo]
 
-- si la cola ya fue consumida, la mejor evidencia es combinar bindings en RabbitMQ con los logs de publicacion y consumo.
-
-[Insertar evidencia E14 - RabbitMQ bindings]
-[Insertar evidencia E15 - logs de notification]
-
-## 13. Observabilidad actual
-
-Prometheus y Grafana si forman parte del entorno local, pero la observabilidad todavia es parcial.
-
-### Prometheus
-
-```powershell
-Start-Process 'http://localhost:9090/targets'
-```
-
-Estado actual:
-
-- el target `prometheus` debe aparecer en `UP`
-- no existe evidencia de scrapeo a los microservicios de negocio en la configuracion actual del repo
-
-### Grafana
-
-```powershell
-Start-Process 'http://localhost:3000'
-```
-
-Estado actual:
-
-- acceso con `admin/admin` salvo cambio local
-- el repo no entrega datasource ni dashboards provisionados listos
-
-[Insertar evidencia E19 - Prometheus targets]
-[Insertar evidencia E20 - Grafana accesible]
-
-## 14. Pruebas finales con k6
+## 13. Validacion con k6
 
 ### Smoke
 
@@ -373,8 +318,6 @@ k6 run .\infra\k6\load-50000-requests.js
 ```
 
 ### Concurrencia de inscripcion
-
-Para no interferir con la demo manual, usar `studentId=2` y `sectionId=1`:
 
 ```powershell
 $env:ENROLLMENT_SERVICE_URL='http://localhost:8083'
@@ -395,51 +338,90 @@ Metricas minimas a reportar:
 - p99
 - throughput
 
-[Insertar evidencia E16 - smoke k6]
-[Insertar evidencia E17 - 50,000 requests]
-[Insertar evidencia E18 - concurrencia k6]
+[Insertar evidencia E15 - smoke k6]
+[Insertar evidencia E16 - 50,000 requests]
+[Insertar evidencia E17 - concurrencia k6]
 
-## 15. Observacion de falla controlada
+## 14. Prometheus y Grafana
 
-Escenario recomendado: detener Redis mientras `course-service` sigue arriba.
+Prometheus y Grafana forman parte del entorno local y en S20 ya tienen restart policy y healthcheck. Aun asi, no deben presentarse como una observabilidad completa del negocio.
+
+Prometheus:
 
 ```powershell
-curl.exe http://localhost:8082/api/courses
-curl.exe http://localhost:8082/api/courses
-docker exec -i campusenroll-redis redis-cli --scan --pattern "courses::*"
+Start-Process 'http://localhost:9090/targets'
+```
+
+Grafana:
+
+```powershell
+Start-Process 'http://localhost:3000'
+```
+
+Estado honesto:
+
+- Prometheus y Grafana si estan disponibles y verificables
+- el repo todavia no entrega scrapeo completo de microservicios
+- el repo todavia no entrega dashboards de negocio listos
+
+[Insertar evidencia E18 - Prometheus targets]
+[Insertar evidencia E19 - Grafana accesible]
+
+## 15. Recuperacion y observacion de fallas
+
+### Recuperacion manual de un servicio en modo HA readiness
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml stop course-service
+docker compose -f docker-compose.yml -f docker-compose.apps.yml ps
+docker compose -f docker-compose.yml -f docker-compose.apps.yml start course-service
+docker compose -f docker-compose.yml -f docker-compose.apps.yml ps
+curl.exe http://localhost:8082/health
+```
+
+Lo que se demuestra:
+
+- el servicio puede detenerse y levantarse otra vez dentro del stack Compose
+- el healthcheck HTTP vuelve a marcar disponibilidad basica
+
+### Falla controlada de infraestructura
+
+```powershell
 docker compose stop redis
 curl.exe http://localhost:8082/api/courses
 docker compose start redis
 docker exec -i campusenroll-redis redis-cli ping
-curl.exe http://localhost:8082/api/courses
-docker exec -i campusenroll-redis redis-cli --scan --pattern "courses::*"
 ```
 
-La evidencia correcta debe incluir:
+Lo que se demuestra:
 
-- contenedor Redis detenido
-- `GET /api/courses` exitoso aun con Redis fuera
-- warning de fallback en `course-service`
-- Redis recuperado y llaves visibles otra vez
+- el catalogo puede seguir respondiendo aunque Redis este degradado
+- Redis puede recuperarse y reinsertar llaves despues del siguiente acceso
 
-[Insertar evidencia E21 - Redis detenido y fallback]
-[Insertar evidencia E22 - warning de course-service]
-[Insertar evidencia E23 - Redis recuperado]
+[Insertar evidencia E20 - reinicio y recuperacion de course-service]
+[Insertar evidencia E21 - fallback con Redis detenido]
 
-## 16. Pendientes y mejoras futuras
+## 16. Limites actuales y mejoras futuras
 
 Los siguientes puntos deben quedar expresados como pendientes, no como trabajo ya completado:
 
-- frontend
-- gateway operativo
-- validacion distribuida entre servicios antes de inscribir
-- creacion automatica de cobro desde eventos
-- scrapeo Prometheus de microservicios
-- dashboards Grafana utiles para negocio y plataforma
-- HA real con replicas, balanceo y recuperacion probada
+- cluster multinodo real
+- replicas activas por servicio
+- balanceador de carga
+- failover automatico
+- replicacion de PostgreSQL
+- Redis cluster
+- RabbitMQ cluster
+- orquestacion con Kubernetes o Docker Swarm
+- Prometheus scrapeando todos los microservicios
+- dashboards Grafana listos para plataforma y negocio
 
 ## 17. Conclusiones
 
-CampusEnroll HA ya puede presentarse como una base funcional con persistencia determinista, cache Redis de catalogo, publicacion y consumo de eventos RabbitMQ para evidencia, cliente Postman operativo, activos k6 listos para pruebas finales y stack local de infraestructura compartida. La entrega final debe sostener ese avance con pruebas visibles, pero sin exagerar la madurez actual de observabilidad, integracion automatica o alta disponibilidad.
+CampusEnroll HA ya puede presentarse como una solucion local `HA-ready` para la entrega: tiene infraestructura compartida endurecida, servicios de aplicacion contenedorizables, restart policies, healthchecks, cache Redis, eventos RabbitMQ, evidencia con Postman, validacion con k6 y observabilidad base con Prometheus y Grafana.
 
-[Insertar evidencia E24 - resumen final o cierre del PDF]
+La conclusion correcta no es "ya existe alta disponibilidad real". La conclusion correcta es:
+
+`la plataforma ya demuestra readiness local, recuperacion operativa basica y una postura tecnica mas fuerte para la entrega final, pero la alta disponibilidad productiva sigue siendo una mejora futura.`
+
+[Insertar evidencia E22 - resumen final o cierre del PDF]

@@ -2,16 +2,16 @@
 
 ## Proposito
 
-`docs/demo/` concentra la guia practica para la entrega final de S19. El objetivo ya no es describir un checkpoint hipotetico, sino ejecutar una validacion corta, repetible y honesta del estado actual del repositorio.
+`docs/demo/` concentra la guia practica para la entrega final de S20. El objetivo es ejecutar una validacion corta, repetible y honesta del estado actual del repositorio, incluyendo el nuevo modo de HA readiness con Docker Compose.
 
 ## Que cubre
 
 - `DEMO_SCRIPT.md`
   - narrativa de 5 a 8 minutos para la exposicion
 - `DEMO_COMMANDS.md`
-  - comandos PowerShell exactos para infraestructura, base de datos, servicios, Postman, Redis, RabbitMQ, k6 y observabilidad
+  - comandos PowerShell exactos para standard mode, HA readiness mode, base de datos, Postman, Redis, RabbitMQ, k6 y observabilidad
 - `EVIDENCE_CHECKLIST.md`
-  - lista de capturas y salidas que deben quedar guardadas para la entrega final
+  - lista de capturas y salidas para la entrega final
 
 ## Orden recomendado
 
@@ -23,8 +23,10 @@
 
 ## Mensajes que no deben perderse en la demo
 
-- Postman es el cliente actual porque no existe frontend.
-- Docker Compose levanta infraestructura, no los microservicios Spring Boot.
+- `docker-compose.yml` es standard mode para infraestructura compartida.
+- `docker-compose.apps.yml` agrega un modo demostrable de HA readiness para los cinco servicios Spring Boot.
+- Postman sigue siendo el cliente actual porque no existe frontend.
 - Redis si participa hoy en `course-service`.
 - RabbitMQ si participa hoy para publicacion y consumo de eventos de evidencia.
-- Prometheus y Grafana existen como infraestructura disponible, pero la observabilidad de aplicacion sigue parcial.
+- Prometheus y Grafana existen como infraestructura disponible.
+- El estado actual es readiness local reforzado, no alta disponibilidad productiva.
