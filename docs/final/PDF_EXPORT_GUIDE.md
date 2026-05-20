@@ -54,24 +54,34 @@ pandoc docs/final/CHECKPOINT_1_PDF_READY.md -o docs/final/CHECKPOINT_1_PDF_READY
 
 ## 6. Checklist final antes de entregar
 
-- confirmar que el documento indique `Segmento: S19`
+- confirmar que el documento indique `Segmento: S20`
 - completar curso, seccion, docente, integrantes, fecha y URL del repositorio
 - verificar que el flujo critico aparezca como:
   - `Inscripcion de estudiante a una seccion y generacion de cobro asociado`
 - verificar que el PDF distinga claramente:
-  - implementado ahora
-  - preparado o configurado
+  - implementado actualmente
+  - configurado o preparado
   - pendiente o mejora futura
+- verificar que el PDF explique claramente:
+  - `docker-compose.yml` como standard mode
+  - `docker-compose.apps.yml` como HA readiness mode
 - no afirmar como cerrado lo siguiente si no hay evidencia local:
+  - replicas multiples
+  - balanceador real
+  - cluster Redis
+  - cluster RabbitMQ
+  - failover PostgreSQL
   - dashboards Grafana de negocio
-  - scrapeo Prometheus de los microservicios
+  - scrapeo Prometheus completo
   - gateway operativo
   - frontend
-  - automatizacion total entre inscripcion y cobro
 - insertar capturas legibles de:
+  - healthchecks y restart policies
+  - arranque de apps con Compose
   - Redis
   - RabbitMQ
   - k6
   - Prometheus
   - Grafana
-  - falla controlada
+  - recuperacion de `course-service`
+  - falla controlada de Redis

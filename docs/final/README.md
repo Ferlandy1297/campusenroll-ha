@@ -2,7 +2,7 @@
 
 ## Proposito
 
-`docs/final/` agrupa la fuente documental para el paquete final de entrega de CampusEnroll HA despues de S19.
+`docs/final/` agrupa la fuente documental para el paquete final de entrega de CampusEnroll HA despues de S20.
 
 ## Archivos
 
@@ -15,18 +15,18 @@
 
 ## Enfoque de esta carpeta
 
-El contenido ya esta alineado con el estado real del repo:
+El contenido esta alineado con el estado real del repo:
 
+- `docker-compose.yml` sigue siendo standard mode para infraestructura
+- `docker-compose.apps.yml` agrega el modo HA readiness para aplicaciones
 - Redis si esta implementado en `course-service`
 - RabbitMQ si participa en publicacion y consumo de eventos de evidencia
 - Postman sigue siendo el cliente actual
-- Docker Compose sigue levantando solo infraestructura
-- Prometheus y Grafana siguen siendo infraestructura disponible con integracion parcial
+- Prometheus y Grafana siguen siendo infraestructura disponible
+- la plataforma es demostrable como `HA-ready`, no como HA productiva
 
 ## Relacion con otras carpetas
 
-- `docs/checkpoint/`
-  - resumen tecnico corto del estado actual
 - `docs/demo/`
   - runbook de demo y evidencia en PowerShell
 - `postman/`
