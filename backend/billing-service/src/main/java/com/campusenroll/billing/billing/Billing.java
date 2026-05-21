@@ -35,9 +35,6 @@ public class Billing {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
-    @Column(name = "pending_enrollment_key", unique = true)
-    private Long pendingEnrollmentKey;
-
     public Long getId() {
         return id;
     }
@@ -84,13 +81,5 @@ public class Billing {
 
     public void setCreatedAt(OffsetDateTime createdAt) {
         this.createdAt = createdAt;
-    }
-
-    public Long getPendingEnrollmentKey() {
-        return pendingEnrollmentKey;
-    }
-
-    public void syncPendingEnrollmentKey() {
-        pendingEnrollmentKey = status == BillingStatus.PENDING ? enrollmentId : null;
     }
 }

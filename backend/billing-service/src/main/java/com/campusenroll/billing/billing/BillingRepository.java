@@ -7,7 +7,7 @@ public interface BillingRepository extends JpaRepository<Billing, Long> {
 
     List<Billing> findAllByOrderByCreatedAtDescIdDesc();
 
-    boolean existsByPendingEnrollmentKey(Long pendingEnrollmentKey);
+    boolean existsByEnrollmentIdAndStatus(Long enrollmentId, BillingStatus status);
 
-    boolean existsByPendingEnrollmentKeyAndIdNot(Long pendingEnrollmentKey, Long id);
+    boolean existsByEnrollmentIdAndStatusAndIdNot(Long enrollmentId, BillingStatus status, Long id);
 }
