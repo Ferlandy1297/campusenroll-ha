@@ -25,6 +25,28 @@ import org.junit.jupiter.api.Test;
 class BillingServiceTest {
 
     @Test
+    void shouldListBillingsOrderedByCreatedAtDescThenIdDesc() {
+        RepositoryState state = new RepositoryState();
+        BillingService billingService = new BillingService(repository(state), new RecordingBillingEventPublisher());
+
+        Billing older = billing(100L, "99.99", "USD", BillingStatus.PENDING, OffsetDateTime.parse("2026-05-05T10:15:30Z"));
+        Billing newer = billing(101L, "150.75", "USD", BillingStatus.PAID, OffsetDateTime.parse("2026-05-06T10:15:30Z"));
+        Billing sameTimestampHigherId =
+                billing(102L, "175.00", "USD", BillingStatus.CANCELLED, OffsetDateTime.parse("2026-05-06T10:15:30Z"));
+
+        persist(state, older);
+        persist(state, newer);
+        persist(state, sameTimestampHigherId);
+
+        List<BillingResponse> response = billingService.getAll();
+
+        assertThat(response).extracting(BillingResponse::id).containsExactly(
+                sameTimestampHigherId.getId(),
+                newer.getId(),
+                older.getId());
+    }
+
+    @Test
     void shouldCreateBilling() {
         RepositoryState state = new RepositoryState();
         RecordingBillingEventPublisher eventPublisher = new RecordingBillingEventPublisher();
@@ -45,7 +67,7 @@ class BillingServiceTest {
         assertThat(response.status()).isEqualTo(BillingStatus.PENDING);
         assertThat(response.createdAt()).isNotNull();
         assertThat(state.storage.values()).hasSize(1);
-        assertThat(new ArrayList<>(state.storage.values()).get(0).getPendingEnrollmentKey()).isEqualTo(100L);
+        assertThat(new ArrayList<>(state.storage.values()).get(0).getEnrollmentId()).isEqualTo(100L);
         assertThat(eventPublisher.publishedEvents).isEmpty();
     }
 
@@ -60,7 +82,6 @@ class BillingServiceTest {
         existing.setCurrency("USD");
         existing.setStatus(BillingStatus.PENDING);
         existing.setCreatedAt(OffsetDateTime.now().minusDays(1));
-        existing.syncPendingEnrollmentKey();
         persist(state, existing);
 
         CreateBillingRequest request = new CreateBillingRequest();
@@ -85,7 +106,6 @@ class BillingServiceTest {
         existing.setCurrency("USD");
         existing.setStatus(BillingStatus.PENDING);
         existing.setCreatedAt(OffsetDateTime.now().minusDays(1));
-        existing.syncPendingEnrollmentKey();
         persist(state, existing);
 
         CreateBillingRequest request = new CreateBillingRequest();
@@ -97,7 +117,7 @@ class BillingServiceTest {
         BillingResponse response = billingService.create(request);
 
         assertThat(response.status()).isEqualTo(BillingStatus.PAID);
-        assertThat(state.storage.get(response.id()).getPendingEnrollmentKey()).isNull();
+        assertThat(state.storage.get(response.id()).getStatus()).isEqualTo(BillingStatus.PAID);
     }
 
     @Test
@@ -124,7 +144,6 @@ class BillingServiceTest {
         target.setCurrency("USD");
         target.setStatus(BillingStatus.CANCELLED);
         target.setCreatedAt(OffsetDateTime.now().minusDays(1));
-        target.syncPendingEnrollmentKey();
         persist(state, target);
 
         Billing existing = new Billing();
@@ -133,7 +152,6 @@ class BillingServiceTest {
         existing.setCurrency("USD");
         existing.setStatus(BillingStatus.PENDING);
         existing.setCreatedAt(OffsetDateTime.now().minusHours(1));
-        existing.syncPendingEnrollmentKey();
         persist(state, existing);
 
         UpdateBillingStatusRequest request = new UpdateBillingStatusRequest();
@@ -145,7 +163,7 @@ class BillingServiceTest {
     }
 
     @Test
-    void shouldClearPendingEnrollmentKeyWhenStatusChangesFromPending() {
+    void shouldKeepBillingListCompatibleWhenStatusChangesFromPending() {
         RepositoryState state = new RepositoryState();
         RecordingBillingEventPublisher eventPublisher = new RecordingBillingEventPublisher();
         BillingService billingService = new BillingService(repository(state), eventPublisher);
@@ -156,7 +174,6 @@ class BillingServiceTest {
         existing.setCurrency("USD");
         existing.setStatus(BillingStatus.PENDING);
         existing.setCreatedAt(OffsetDateTime.now().minusHours(1));
-        existing.syncPendingEnrollmentKey();
         persist(state, existing);
 
         UpdateBillingStatusRequest request = new UpdateBillingStatusRequest();
@@ -165,7 +182,7 @@ class BillingServiceTest {
         BillingResponse response = billingService.updateStatus(existing.getId(), request);
 
         assertThat(response.status()).isEqualTo(BillingStatus.PAID);
-        assertThat(state.storage.get(existing.getId()).getPendingEnrollmentKey()).isNull();
+        assertThat(state.storage.get(existing.getId()).getStatus()).isEqualTo(BillingStatus.PAID);
         assertThat(eventPublisher.publishedEvents).hasSize(1);
         assertThat(eventPublisher.publishedEvents.get(0).previousStatus).isEqualTo(BillingStatus.PENDING);
         assertThat(eventPublisher.publishedEvents.get(0).newStatus).isEqualTo(BillingStatus.PAID);
@@ -183,7 +200,6 @@ class BillingServiceTest {
         existing.setCurrency("USD");
         existing.setStatus(BillingStatus.PENDING);
         existing.setCreatedAt(OffsetDateTime.now().minusHours(1));
-        existing.syncPendingEnrollmentKey();
         persist(state, existing);
 
         UpdateBillingStatusRequest request = new UpdateBillingStatusRequest();
@@ -208,6 +224,21 @@ class BillingServiceTest {
             billing.setId(state.sequence++);
         }
         state.storage.put(billing.getId(), billing);
+        return billing;
+    }
+
+    private static Billing billing(
+            Long enrollmentId,
+            String amount,
+            String currency,
+            BillingStatus status,
+            OffsetDateTime createdAt) {
+        Billing billing = new Billing();
+        billing.setEnrollmentId(enrollmentId);
+        billing.setAmount(new BigDecimal(amount));
+        billing.setCurrency(currency);
+        billing.setStatus(status);
+        billing.setCreatedAt(createdAt);
         return billing;
     }
 
@@ -238,13 +269,12 @@ class BillingServiceTest {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
             return switch (method.getName()) {
-                case "existsByPendingEnrollmentKey" -> state.storage.values().stream()
-                        .anyMatch(billing -> billing.getPendingEnrollmentKey() != null
-                                && billing.getPendingEnrollmentKey().equals(args[0]));
-                case "existsByPendingEnrollmentKeyAndIdNot" -> state.storage.values().stream()
-                        .anyMatch(billing -> billing.getPendingEnrollmentKey() != null
-                                && billing.getPendingEnrollmentKey().equals(args[0])
-                                && !billing.getId().equals(args[1]));
+                case "existsByEnrollmentIdAndStatus" -> state.storage.values().stream()
+                        .anyMatch(billing -> billing.getEnrollmentId().equals(args[0]) && billing.getStatus() == args[1]);
+                case "existsByEnrollmentIdAndStatusAndIdNot" -> state.storage.values().stream()
+                        .anyMatch(billing -> billing.getEnrollmentId().equals(args[0])
+                                && billing.getStatus() == args[1]
+                                && !billing.getId().equals(args[2]));
                 case "findAllByOrderByCreatedAtDescIdDesc" -> state.storage.values().stream()
                         .sorted(Comparator.comparing(Billing::getCreatedAt)
                                 .reversed()

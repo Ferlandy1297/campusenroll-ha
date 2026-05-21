@@ -39,7 +39,7 @@ public class BillingService {
     @Transactional
     public BillingResponse create(CreateBillingRequest request) {
         if (request.getStatus() == BillingStatus.PENDING
-                && billingRepository.existsByPendingEnrollmentKey(request.getEnrollmentId())) {
+                && billingRepository.existsByEnrollmentIdAndStatus(request.getEnrollmentId(), BillingStatus.PENDING)) {
             throw new ConflictException("An active billing already exists for this enrollment");
         }
 
@@ -49,7 +49,6 @@ public class BillingService {
         billing.setCurrency(normalizeCurrency(request.getCurrency()));
         billing.setStatus(request.getStatus());
         billing.setCreatedAt(OffsetDateTime.now());
-        billing.syncPendingEnrollmentKey();
 
         return saveBilling(billing);
     }
@@ -62,12 +61,14 @@ public class BillingService {
 
         if (nextStatus == BillingStatus.PENDING
                 && billing.getStatus() != BillingStatus.PENDING
-                && billingRepository.existsByPendingEnrollmentKeyAndIdNot(billing.getEnrollmentId(), billing.getId())) {
+                && billingRepository.existsByEnrollmentIdAndStatusAndIdNot(
+                        billing.getEnrollmentId(),
+                        BillingStatus.PENDING,
+                        billing.getId())) {
             throw new ConflictException("An active billing already exists for this enrollment");
         }
 
         billing.setStatus(nextStatus);
-        billing.syncPendingEnrollmentKey();
         BillingResponse response = saveBilling(billing);
         if (previousStatus != nextStatus) {
             billingEventPublisher.publishBillingStatusChanged(billing, previousStatus, nextStatus);

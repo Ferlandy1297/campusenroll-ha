@@ -173,8 +173,8 @@ CREATE INDEX idx_billings_enrollment_id ON billings (enrollment_id);
 CREATE INDEX idx_billings_status ON billings (status);
 CREATE INDEX idx_billings_created_at ON billings (created_at DESC);
 
--- The billing service currently uses a helper field in local JPA behavior.
--- The authoritative relational model uses the business rule directly.
+-- Prevent duplicate active pending billings directly at the relational layer
+-- while still allowing historical non-pending records for the same enrollment.
 CREATE UNIQUE INDEX uq_billings_pending_enrollment
     ON billings (enrollment_id)
     WHERE status = 'PENDING';
