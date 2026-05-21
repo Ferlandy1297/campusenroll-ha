@@ -1,4 +1,4 @@
-# Demo Commands - PowerShell
+# Demo Commands - PowerShell - S22
 
 ## 1. Confirmar variables locales
 
@@ -10,15 +10,16 @@ Notas:
 
 - El `.env` actual usa `POSTGRES_PORT=55432`.
 - Si cambias a `5432`, las URLs JDBC del modo Maven deben usar ese mismo puerto.
+- Frontend sigue fuera de alcance; Postman es el cliente operativo actual.
 
-## 2. Standard mode: levantar solo infraestructura
+## 2. HA readiness mode: levantar stack completo
 
 ```powershell
-docker compose up -d postgres redis rabbitmq prometheus grafana
-docker compose ps
+docker compose -f docker-compose.yml -f docker-compose.apps.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.apps.yml ps
 ```
 
-En este modo, Docker Compose levanta solo infraestructura compartida.
+Este es el comando recomendado para la defensa del estado actual.
 
 ## 3. Cargar PostgreSQL de forma determinista
 
@@ -39,9 +40,35 @@ docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT i
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, enrollment_id, amount, currency, status FROM billings ORDER BY id;"
 ```
 
-## 4. Elegir modo de ejecucion de aplicaciones
+## 4. Verificar base y crear backup S22
 
-### 4A. Modo Maven local
+```powershell
+powershell -ExecutionPolicy Bypass -File infra/backups/verify-database.ps1
+powershell -ExecutionPolicy Bypass -File infra/backups/backup-postgres.ps1
+Get-ChildItem infra/backups/output
+```
+
+Que debe observarse:
+
+- conexion correcta a `campusenroll`
+- usuario `campus`
+- conteos visibles para `students`, `courses`, `sections`, `enrollments` y `billings`
+- un archivo `.dump` nuevo dentro de `infra/backups/output`
+
+## 5. Standard mode alternativo
+
+Si el equipo quiere mostrar solo infraestructura compartida:
+
+```powershell
+docker compose up -d postgres redis rabbitmq prometheus grafana
+docker compose ps
+```
+
+Este modo mantiene intacto el flujo local con `mvn spring-boot:run`.
+
+## 6. Elegir modo de ejecucion de aplicaciones
+
+### 6A. Modo Maven local
 
 Abrir una terminal PowerShell por servicio.
 
@@ -84,7 +111,7 @@ Set-Location .\backend\notification
 mvn spring-boot:run
 ```
 
-### 4B. HA readiness mode con contenedores
+### 6B. HA readiness mode con contenedores
 
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.apps.yml up -d --build
@@ -103,7 +130,7 @@ Mensaje honesto:
 - este modo es demostrable para readiness local
 - no es alta disponibilidad productiva ni cluster real
 
-## 5. Verificar salud
+## 7. Verificar salud
 
 ```powershell
 curl.exe http://localhost:8081/health
@@ -115,7 +142,7 @@ curl.exe http://localhost:8085/health
 
 Cada respuesta debe incluir `status=UP` y el nombre del servicio.
 
-## 6. Verificar contenedores y healthchecks del modo HA readiness
+## 8. Verificar contenedores y healthchecks del modo HA readiness
 
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.apps.yml ps
@@ -128,9 +155,9 @@ Si estas en modo HA readiness, la tabla debe mostrar:
 - `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` arriba
 - estado `healthy` cuando el healthcheck haya completado
 
-## 7. Evidencia de recuperacion por reinicio de servicio
+## 9. Evidencia de recuperacion por reinicio de servicio
 
-Escenario recomendado para S21:
+Escenario recomendado para la continuidad operativa local:
 
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.apps.yml stop course-service
@@ -146,7 +173,7 @@ Que debe capturarse:
 - el reinicio manual exitoso
 - `GET /health` respondiendo de nuevo
 
-## 8. Validar Postman
+## 10. Validar Postman
 
 Pasos manuales:
 
@@ -160,7 +187,7 @@ Pasos manuales:
    - `04 - Billings`
    - `05 - Notification`
 
-## 9. Flujo funcional exacto para la demo
+## 11. Flujo funcional exacto para la demo
 
 El dataset demo deja libre la combinacion `studentId=1` y `sectionId=2`.
 
@@ -212,7 +239,7 @@ Invoke-RestMethod -Method Patch -Uri "http://localhost:8084/api/billings/$($bill
 } | ConvertTo-Json -Compress)
 ```
 
-## 10. Verificar Redis cache
+## 12. Verificar Redis cache
 
 ```powershell
 docker exec -i campusenroll-redis redis-cli ping
@@ -227,7 +254,7 @@ Evidencia esperada:
 - respuestas correctas de `GET /api/courses`
 - al menos una llave `courses::*`
 
-## 11. Verificar RabbitMQ y logs de eventos
+## 13. Verificar RabbitMQ y logs de eventos
 
 Abrir la UI:
 
@@ -258,7 +285,7 @@ Log lines que deben observarse:
   - `Enrollment created event received ...`
   - `Billing status changed event received ...`
 
-## 12. Ejecutar k6
+## 14. Ejecutar k6
 
 ### Smoke test
 
@@ -298,7 +325,7 @@ Capturar siempre del resumen final:
 - p99
 - throughput
 
-## 13. Verificar Prometheus, metricas y Grafana
+## 15. Verificar Prometheus, metricas y Grafana
 
 Si Prometheus ya estaba arriba antes de actualizar `infra/prometheus/prometheus.yml`, reiniciarlo una vez para forzar la recarga:
 
@@ -325,12 +352,12 @@ Capturas recomendadas:
 
 Mensaje honesto:
 
-- S21 agrega metricas reales de microservicios mediante Actuator y Micrometer Prometheus
+- S21 agrego metricas reales de microservicios mediante Actuator y Micrometer Prometheus
 - el workflow Maven local sigue intacto, pero los targets por nombre de servicio Docker solo apareceran `UP` en la UI de Prometheus cuando `docker-compose.apps.yml` este activo
 - si Prometheus ya venia ejecutandose desde una corrida anterior, puede requerir un `restart prometheus` para recargar la nueva configuracion montada
 - Grafana sigue disponible, pero dashboards de negocio, alertas, replicas y clustering siguen como mejora futura
 
-## 14. Observacion de falla controlada de infraestructura
+## 16. Observacion de falla controlada de infraestructura
 
 Escenario recomendado: degradacion de Redis con `course-service` arriba.
 
@@ -348,3 +375,24 @@ docker exec -i campusenroll-redis redis-cli --scan --pattern "courses::*"
 ```
 
 Ademas, mantener visible la consola o logs de `course-service` para capturar el fallback de cache.
+
+## 17. Restore de backup con advertencia visible
+
+Usar este paso solo como prueba manual controlada. El restore sobrescribe objetos actuales de la base.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infra/backups/restore-postgres.ps1 -BackupFile "infra/backups/output/<backup-file>.dump" -Force
+powershell -ExecutionPolicy Bypass -File infra/backups/verify-database.ps1
+```
+
+Recomendacion operativa:
+
+- detener escrituras de aplicaciones antes del restore
+- usar un backup recien creado o un dump conocido como valido
+- capturar la advertencia de sobrescritura y la verificacion posterior
+
+Mensaje honesto de S22:
+
+- ahora existe una estrategia local de backup y restore para PostgreSQL
+- esto fortalece la continuidad operativa y la defensa academica del proyecto
+- produccion seguiria necesitando automatizacion, almacenamiento off-site, cifrado y politicas de retencion probadas

@@ -11,10 +11,18 @@ CampusEnroll HA ya tiene una base funcional para:
 - `notification` como consumidor RabbitMQ para evidencia y logs
 - metricas reales Actuator/Prometheus en los cinco microservicios
 - `db/schema.sql` y `db/data.sql` para carga determinista de PostgreSQL
+- `infra/backups/` con scripts PowerShell para backup, restore y verificacion de PostgreSQL
 - `postman/` como cliente operativo actual
 - `infra/k6/` como paquete de validacion final
 
-La entrega actual ya no depende solo del flujo local con Maven. El repo ahora soporta dos modos de ejecucion sin reemplazar el workflow existente.
+La entrega actual ya no depende solo del flujo local con Maven. El repo soporta dos modos de ejecucion sin reemplazar el workflow existente.
+
+S22 agrega una capa practica de backup y recuperacion ante desastres para PostgreSQL. Esto fortalece la continuidad operativa local y la narrativa de HA readiness sin convertir el proyecto en una plataforma productiva de alta disponibilidad.
+
+Alcance honesto:
+
+- backend, base de datos, microservicios, observabilidad y recuperacion
+- sin frontend; Postman sigue siendo el cliente operativo actual
 
 ## Modos de ejecucion
 
@@ -65,7 +73,7 @@ Importante:
 ## Flujo local recomendado
 
 1. Confirmar `.env`.
-2. Levantar infraestructura compartida.
+2. Levantar infraestructura compartida o el stack completo.
 3. Cargar base de datos demo si el volumen es nuevo.
 4. Elegir uno de estos caminos:
    - ejecutar servicios localmente con `mvn spring-boot:run`
@@ -73,6 +81,7 @@ Importante:
 5. Verificar salud con `GET /health` y endpoints Actuator.
 6. Verificar Prometheus en `http://localhost:9090/targets` si el modo HA readiness esta activo.
 7. Ejecutar Postman, Redis, RabbitMQ, k6 y la evidencia final.
+8. Ejecutar backup/restore de PostgreSQL cuando se necesite preservar o recuperar el dataset local.
 
 Carga de base de datos:
 
@@ -101,6 +110,29 @@ curl.exe http://localhost:8084/actuator/prometheus
 curl.exe http://localhost:8085/actuator/prometheus
 ```
 
+## Backup y recuperacion S22
+
+Comandos base:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infra/backups/verify-database.ps1
+powershell -ExecutionPolicy Bypass -File infra/backups/backup-postgres.ps1
+Get-ChildItem infra/backups/output
+powershell -ExecutionPolicy Bypass -File infra/backups/restore-postgres.ps1 -BackupFile "infra/backups/output/<backup-file>.dump" -Force
+powershell -ExecutionPolicy Bypass -File infra/backups/verify-database.ps1
+```
+
+Que hace esta capa:
+
+- genera dumps PostgreSQL en formato custom con `pg_dump -Fc`
+- restaura con `pg_restore --clean --if-exists`
+- deja un runbook local en `infra/backups/DISASTER_RECOVERY_RUNBOOK.md`
+
+Mensaje honesto:
+
+- esto ya permite defender backup y recuperacion local de la base de datos
+- no equivale todavia a backups programados, almacenamiento off-site, cifrado, ni retencion productiva
+
 ## Que esta implementado
 
 - `restart: unless-stopped` en infraestructura y servicios de aplicacion en modo Compose
@@ -110,6 +142,10 @@ curl.exe http://localhost:8085/actuator/prometheus
 - Prometheus scrapeando metricas reales de los cinco microservicios en modo HA readiness
 - Redis real en `course-service`
 - RabbitMQ real para publicacion y consumo de eventos de evidencia
+- backup manual de PostgreSQL con `infra/backups/backup-postgres.ps1`
+- restore manual de PostgreSQL con `infra/backups/restore-postgres.ps1`
+- verificacion de base con `infra/backups/verify-database.ps1`
+- runbook local de recuperacion ante desastres en `infra/backups/DISASTER_RECOVERY_RUNBOOK.md`
 - k6 como paquete de validacion final
 - Grafana accesible como infraestructura disponible
 
@@ -124,6 +160,10 @@ curl.exe http://localhost:8085/actuator/prometheus
 - dashboards Grafana listos para plataforma y negocio
 - alertas Prometheus/Grafana
 - gateway operativo como entrypoint real
+- backups programados
+- almacenamiento off-site
+- cifrado de backups
+- retencion automatizada y pruebas periodicas de restauracion
 
 ## URLs utiles
 
@@ -138,4 +178,5 @@ curl.exe http://localhost:8085/actuator/prometheus
 - `docs/demo/EVIDENCE_CHECKLIST.md`
 - `docs/final/CHECKPOINT_1_PDF_READY.md`
 - `docs/final/EVIDENCE_PLACEHOLDERS.md`
+- `infra/backups/DISASTER_RECOVERY_RUNBOOK.md`
 - `infra/k6/README.md`

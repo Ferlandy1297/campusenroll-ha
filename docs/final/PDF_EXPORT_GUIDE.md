@@ -54,7 +54,7 @@ pandoc docs/final/CHECKPOINT_1_PDF_READY.md -o docs/final/CHECKPOINT_1_PDF_READY
 
 ## 6. Checklist final antes de entregar
 
-- confirmar que el documento indique `Segmento: S21`
+- confirmar que el documento indique `Segmento: S22`
 - completar curso, seccion, docente, integrantes, fecha y URL del repositorio
 - verificar que el flujo critico aparezca como:
   - `Inscripcion de estudiante a una seccion y generacion de cobro asociado`
@@ -66,12 +66,18 @@ pandoc docs/final/CHECKPOINT_1_PDF_READY.md -o docs/final/CHECKPOINT_1_PDF_READY
   - `docker-compose.yml` como standard mode
   - `docker-compose.apps.yml` como HA readiness mode
   - metricas Prometheus reales en `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification`
+  - backup local de PostgreSQL con `infra/backups/backup-postgres.ps1`
+  - restore local de PostgreSQL con `infra/backups/restore-postgres.ps1`
+  - runbook de recuperacion en `infra/backups/DISASTER_RECOVERY_RUNBOOK.md`
 - no afirmar como cerrado lo siguiente si no hay evidencia local:
   - replicas multiples
   - balanceador real
   - cluster Redis
   - cluster RabbitMQ
   - failover PostgreSQL
+  - backups programados
+  - almacenamiento off-site
+  - cifrado de backups
   - dashboards Grafana de negocio
   - alertas Prometheus/Grafana
   - gateway operativo
@@ -86,5 +92,9 @@ pandoc docs/final/CHECKPOINT_1_PDF_READY.md -o docs/final/CHECKPOINT_1_PDF_READY
   - k6
   - Prometheus
   - Grafana
+  - backup PostgreSQL creado
+  - restore PostgreSQL ejecutado con advertencia visible
+  - verificacion de base antes y despues del restore
+  - runbook de recuperacion
   - recuperacion de `course-service`
   - falla controlada de Redis

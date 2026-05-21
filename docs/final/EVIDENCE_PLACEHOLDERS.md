@@ -27,11 +27,17 @@ Usar estos placeholders dentro de `CHECKPOINT_1_PDF_READY.md` o en el anexo del 
 | `E21` | `21_course_recovery.png` | `course-service` detenido, reiniciado y saludable otra vez. |
 | `E22` | `22_redis_fallback.png` | Redis detenido y `GET /api/courses` respondiendo. |
 | `E23` | `23_final_summary.png` | Seccion de conclusiones o resumen final del PDF. |
+| `E24` | `24_backup_verify_before.png` | `verify-database.ps1` antes del backup. |
+| `E25` | `25_backup_created.png` | `backup-postgres.ps1` con el dump generado y el nombre del archivo. |
+| `E26` | `26_restore_warning.png` | `restore-postgres.ps1` mostrando advertencia y uso de `-Force`. |
+| `E27` | `27_backup_verify_after.png` | `verify-database.ps1` despues del restore. |
+| `E28` | `28_runbook_open.png` | `infra/backups/DISASTER_RECOVERY_RUNBOOK.md` abierto con escenarios y comandos. |
 
 ## Reglas de uso
 
 - No afirmar alta disponibilidad productiva; describir el estado como `HA-ready` y demostrable.
 - No inventar replicas, balanceadores, clusters o failover si no fueron implementados.
+- No presentar el backup local como automatizado o productivo si solo se ejecuto manualmente.
 - Si `docker-compose.apps.yml` no estaba activo, no afirmar que los cinco targets de aplicaciones estaban `UP` en Prometheus.
 - Cuando la cola `notification.events` ya este consumida, combinar UI o `rabbitmqctl` con logs del consumidor.
 - Si el volumen PostgreSQL era nuevo, dejar visible que `db/schema.sql` y `db/data.sql` fueron cargados.

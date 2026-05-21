@@ -2,14 +2,14 @@
 
 ## Proposito
 
-`docs/demo/` concentra la guia practica para la entrega final de S20. El objetivo es ejecutar una validacion corta, repetible y honesta del estado actual del repositorio, incluyendo el nuevo modo de HA readiness con Docker Compose.
+`docs/demo/` concentra la guia practica para la entrega final de S22. El objetivo es ejecutar una validacion corta, repetible y honesta del estado actual del repositorio, incluyendo HA readiness local, metricas Prometheus y backup/restore PostgreSQL.
 
 ## Que cubre
 
 - `DEMO_SCRIPT.md`
-  - narrativa de 5 a 8 minutos para la exposicion
+  - narrativa de 6 a 9 minutos para la exposicion
 - `DEMO_COMMANDS.md`
-  - comandos PowerShell exactos para standard mode, HA readiness mode, base de datos, Postman, Redis, RabbitMQ, k6 y observabilidad
+  - comandos PowerShell exactos para stack, base de datos, backup, restore, Postman, Redis, RabbitMQ, k6 y observabilidad
 - `EVIDENCE_CHECKLIST.md`
   - lista de capturas y salidas para la entrega final
 
@@ -29,4 +29,5 @@
 - Redis si participa hoy en `course-service`.
 - RabbitMQ si participa hoy para publicacion y consumo de eventos de evidencia.
 - Prometheus y Grafana existen como infraestructura disponible.
+- S22 agrega backup, restore y runbook de recuperacion para PostgreSQL.
 - El estado actual es readiness local reforzado, no alta disponibilidad productiva.
