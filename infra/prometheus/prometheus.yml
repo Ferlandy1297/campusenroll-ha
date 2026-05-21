@@ -1,4 +1,4 @@
-# Prometheus base configuration for local development (S01)
+# Prometheus configuration for local development and S21 HA-readiness metrics
 
 global:
   scrape_interval: 15s
@@ -10,5 +10,29 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # Future jobs for services will be added in later segments (S02+)
+  # Scrape Spring Boot application metrics when HA-readiness mode is active
+  - job_name: 'student-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['student-service:8081']
+
+  - job_name: 'course-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['course-service:8082']
+
+  - job_name: 'enrollment-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['enrollment-service:8083']
+
+  - job_name: 'billing-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['billing-service:8084']
+
+  - job_name: 'notification'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['notification:8085']
 

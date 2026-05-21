@@ -54,7 +54,7 @@ pandoc docs/final/CHECKPOINT_1_PDF_READY.md -o docs/final/CHECKPOINT_1_PDF_READY
 
 ## 6. Checklist final antes de entregar
 
-- confirmar que el documento indique `Segmento: S20`
+- confirmar que el documento indique `Segmento: S21`
 - completar curso, seccion, docente, integrantes, fecha y URL del repositorio
 - verificar que el flujo critico aparezca como:
   - `Inscripcion de estudiante a una seccion y generacion de cobro asociado`
@@ -65,6 +65,7 @@ pandoc docs/final/CHECKPOINT_1_PDF_READY.md -o docs/final/CHECKPOINT_1_PDF_READY
 - verificar que el PDF explique claramente:
   - `docker-compose.yml` como standard mode
   - `docker-compose.apps.yml` como HA readiness mode
+  - metricas Prometheus reales en `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification`
 - no afirmar como cerrado lo siguiente si no hay evidencia local:
   - replicas multiples
   - balanceador real
@@ -72,12 +73,14 @@ pandoc docs/final/CHECKPOINT_1_PDF_READY.md -o docs/final/CHECKPOINT_1_PDF_READY
   - cluster RabbitMQ
   - failover PostgreSQL
   - dashboards Grafana de negocio
-  - scrapeo Prometheus completo
+  - alertas Prometheus/Grafana
   - gateway operativo
   - frontend
 - insertar capturas legibles de:
   - healthchecks y restart policies
   - arranque de apps con Compose
+  - endpoints `/actuator/prometheus`
+  - targets Prometheus con las cinco apps en `UP`
   - Redis
   - RabbitMQ
   - k6

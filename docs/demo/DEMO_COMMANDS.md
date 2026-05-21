@@ -130,7 +130,7 @@ Si estas en modo HA readiness, la tabla debe mostrar:
 
 ## 7. Evidencia de recuperacion por reinicio de servicio
 
-Escenario recomendado para S20:
+Escenario recomendado para S21:
 
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.apps.yml stop course-service
@@ -298,9 +298,20 @@ Capturar siempre del resumen final:
 - p99
 - throughput
 
-## 13. Verificar Prometheus y Grafana
+## 13. Verificar Prometheus, metricas y Grafana
+
+Si Prometheus ya estaba arriba antes de actualizar `infra/prometheus/prometheus.yml`, reiniciarlo una vez para forzar la recarga:
 
 ```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml restart prometheus
+```
+
+```powershell
+curl.exe http://localhost:8081/actuator/prometheus
+curl.exe http://localhost:8082/actuator/prometheus
+curl.exe http://localhost:8083/actuator/prometheus
+curl.exe http://localhost:8084/actuator/prometheus
+curl.exe http://localhost:8085/actuator/prometheus
 docker compose ps prometheus grafana
 Start-Process 'http://localhost:9090/targets'
 Start-Process 'http://localhost:3000'
@@ -308,13 +319,16 @@ Start-Process 'http://localhost:3000'
 
 Capturas recomendadas:
 
-- Prometheus con su health endpoint estable y el target `prometheus` en estado `UP`
+- respuestas no vacias de los cinco endpoints `/actuator/prometheus`
+- Prometheus con `prometheus`, `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` en estado `UP`
 - Grafana accesible y respondiendo
 
 Mensaje honesto:
 
-- Prometheus y Grafana ya tienen contenedores con restart policy y healthcheck
-- el repo todavia no entrega cluster, dashboards de negocio ni scrapeo completo de microservicios
+- S21 agrega metricas reales de microservicios mediante Actuator y Micrometer Prometheus
+- el workflow Maven local sigue intacto, pero los targets por nombre de servicio Docker solo apareceran `UP` en la UI de Prometheus cuando `docker-compose.apps.yml` este activo
+- si Prometheus ya venia ejecutandose desde una corrida anterior, puede requerir un `restart prometheus` para recargar la nueva configuracion montada
+- Grafana sigue disponible, pero dashboards de negocio, alertas, replicas y clustering siguen como mejora futura
 
 ## 14. Observacion de falla controlada de infraestructura
 
