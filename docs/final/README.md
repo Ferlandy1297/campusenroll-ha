@@ -2,7 +2,7 @@
 
 ## Proposito
 
-`docs/final/` agrupa la fuente documental para el paquete final de entrega de CampusEnroll HA despues de S20.
+`docs/final/` agrupa la fuente documental para el paquete final de entrega de CampusEnroll HA despues de S22.
 
 ## Archivos
 
@@ -23,6 +23,7 @@ El contenido esta alineado con el estado real del repo:
 - RabbitMQ si participa en publicacion y consumo de eventos de evidencia
 - Postman sigue siendo el cliente actual
 - Prometheus y Grafana siguen siendo infraestructura disponible
+- S22 agrega backup, restore y runbook de recuperacion para PostgreSQL
 - la plataforma es demostrable como `HA-ready`, no como HA productiva
 
 ## Relacion con otras carpetas
@@ -33,3 +34,5 @@ El contenido esta alineado con el estado real del repo:
   - coleccion y environment local
 - `infra/k6/`
   - scripts y guia de pruebas finales
+- `infra/backups/`
+  - scripts y runbook de backup y recuperacion de base de datos

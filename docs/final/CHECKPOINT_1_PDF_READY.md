@@ -6,8 +6,8 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 - Curso y seccion: `[Completar]`
 - Proyecto: CampusEnroll HA
-- Segmento: S21
-- Rol responsable: observability owner for Prometheus service metrics
+- Segmento: S22
+- Rol responsable: backup, restore, and disaster recovery owner
 - Docente: `[Completar]`
 - Integrantes: `[Completar]`
 - Fecha: `[Completar]`
@@ -17,11 +17,11 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 ## 2. Resumen ejecutivo
 
-CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completa ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness.
+CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completo ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness. S22 agrega una capa practica de backup, restore y recuperacion ante desastres para PostgreSQL.
 
 Mensaje central:
 
-`CampusEnroll HA ya es demostrable como plataforma local HA-ready, pero no debe presentarse como una solucion de alta disponibilidad productiva.`
+`CampusEnroll HA ya es demostrable como plataforma local HA-ready con recuperacion de datos PostgreSQL, pero no debe presentarse como una solucion de alta disponibilidad productiva.`
 
 ### Implementado actualmente
 
@@ -35,13 +35,17 @@ Mensaje central:
 - `course-service` usa Redis como cache real.
 - `enrollment-service` y `billing-service` publican eventos RabbitMQ.
 - `notification` consume esos eventos y deja evidencia en logs.
+- `infra/backups/backup-postgres.ps1` crea dumps locales de PostgreSQL.
+- `infra/backups/restore-postgres.ps1` restaura un dump seleccionado con advertencia visible.
+- `infra/backups/verify-database.ps1` valida base, usuario y conteos clave.
+- `infra/backups/DISASTER_RECOVERY_RUNBOOK.md` documenta perdida de datos, corrupcion de volumen y reconstruccion del entorno local.
 - `postman/` sigue siendo el cliente operativo actual.
 - `infra/k6/` sigue siendo el paquete de validacion final.
 
 ### Configurado o preparado
 
 - Grafana esta disponible como infraestructura local accesible.
-- Compose ya permite demostrar arranque coordinado, estado de salud, metricas Prometheus y recuperacion manual de servicios.
+- Compose ya permite demostrar arranque coordinado, estado de salud, metricas Prometheus, backup PostgreSQL y recuperacion manual de servicios.
 
 ### Pendiente o mejora futura
 
@@ -50,25 +54,29 @@ Mensaje central:
 - cluster Redis
 - cluster RabbitMQ
 - replicacion y failover de PostgreSQL
+- backups programados
+- almacenamiento off-site
+- cifrado de backups
+- retencion automatizada
 - Kubernetes o Docker Swarm
 - dashboards Grafana listos para plataforma y negocio
 - alertas Prometheus/Grafana
-- gateway operativo como entrypoint real
 
-## 3. Objetivo tecnico de S21
+## 3. Objetivo tecnico de S22
 
-El objetivo de este segmento no fue rehacer la arquitectura ni reemplazar el flujo Maven existente. El objetivo fue completar la observabilidad base con cambios pequenos y revisables:
+El objetivo de este segmento no fue rehacer la arquitectura ni reemplazar el flujo Maven existente. El objetivo fue completar la continuidad operativa local con cambios pequenos y revisables:
 
 1. conservar `docker-compose.yml` como modo estandar de infraestructura
 2. conservar `docker-compose.apps.yml` como modo Compose adicional para aplicaciones
 3. mantener operativos los endpoints custom `GET /health`
-4. agregar exposicion Actuator segura para `health`, `info` y `prometheus`
-5. habilitar scrape real de Prometheus hacia las cinco aplicaciones por nombre de servicio Docker
-6. dejar evidencia clara de metricas, targets y limites actuales de observabilidad
+4. agregar una capa local de backup PostgreSQL con `pg_dump -Fc`
+5. agregar restore protegido con `-Force` y `pg_restore --clean --if-exists`
+6. dejar una verificacion simple de base y un runbook de recuperacion ante desastres
+7. mantener explicitos los limites entre recuperacion local academica y controles productivos reales
 
 ## 4. Arquitectura operativa actual
 
-La entrega final debe describirse con dos modos de ejecucion, no con una sola narrativa:
+La entrega final debe describirse con dos modos de ejecucion, no con una sola narrativa.
 
 ### Standard mode
 
@@ -93,6 +101,7 @@ Tabla de componentes:
 | `notification` | Implementado para evidencia | Consumidor RabbitMQ y modo contenedor |
 | `gateway-service` | Preparado, no operativo | No participa en la demo actual |
 | PostgreSQL | Implementado | Persistencia principal y healthcheck |
+| Backup PostgreSQL | Implementado localmente | Scripts PowerShell y dumps en `infra/backups/output/` |
 | Redis | Implementado | Cache de lectura y healthcheck |
 | RabbitMQ | Implementado | Broker de eventos y healthcheck |
 | Prometheus | Implementado con alcance local | Infra disponible, healthcheck activo y scrape real de los cinco microservicios en HA readiness mode |
@@ -101,9 +110,9 @@ Tabla de componentes:
 [Insertar evidencia E02 - compose base e infraestructura]
 [Insertar evidencia E03 - compose apps con servicios Spring Boot]
 
-## 5. Infraestructura, endurecimiento Compose y observabilidad S21
+## 5. Infraestructura, endurecimiento Compose y observabilidad
 
-Los cambios acumulados hasta S21 se enfocan en robustecer el entorno local sin romper el workflow actual:
+Los cambios acumulados hasta S22 se enfocan en robustecer el entorno local sin romper el workflow actual:
 
 - `restart: unless-stopped` para infraestructura y aplicaciones
 - healthcheck de PostgreSQL con `pg_isready`
@@ -115,6 +124,7 @@ Los cambios acumulados hasta S21 se enfocan en robustecer el entorno local sin r
 - Actuator habilitado para `health`, `info` y `prometheus`
 - Micrometer Prometheus registry agregado en los cinco microservicios
 - scrape Prometheus apuntando a `student-service:8081`, `course-service:8082`, `enrollment-service:8083`, `billing-service:8084` y `notification:8085`
+- scripts PowerShell para backup, restore y verificacion de PostgreSQL
 
 Puertos operativos relevantes:
 
@@ -208,7 +218,50 @@ El dataset demo deja una combinacion libre util para la validacion funcional:
 [Insertar evidencia E07 - carga de schema y seed]
 [Insertar evidencia E08 - consulta de datos demo]
 
-## 9. Salud de servicios y healthchecks HTTP
+## 9. Backup, restore y recuperacion ante desastres S22
+
+S22 agrega una capa local y defendible de recuperacion de datos sobre PostgreSQL. No cambia la logica de negocio ni el esquema. Agrega procedimientos simples de backup, restore y verificacion para el contenedor `campusenroll-postgres`.
+
+Comandos:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infra/backups/verify-database.ps1
+powershell -ExecutionPolicy Bypass -File infra/backups/backup-postgres.ps1
+Get-ChildItem infra/backups/output
+powershell -ExecutionPolicy Bypass -File infra/backups/restore-postgres.ps1 -BackupFile "infra/backups/output/<backup-file>.dump" -Force
+powershell -ExecutionPolicy Bypass -File infra/backups/verify-database.ps1
+```
+
+Lo que protege:
+
+- datos PostgreSQL de `students`, `courses`, `academic_periods`, `sections`, `schedule_blocks`, `enrollments` y `billings`
+
+Lo que no protege:
+
+- Redis
+- RabbitMQ
+- Prometheus/Grafana
+- caches locales
+- frontend, porque sigue fuera de alcance
+
+Escenarios cubiertos por el runbook:
+
+- perdida accidental de datos
+- corrupcion del volumen PostgreSQL
+- reconstruccion del entorno local
+
+Mensaje honesto:
+
+- esto fortalece la continuidad operativa local y la narrativa de HA readiness
+- no equivale a backups programados, off-site, cifrados ni con retencion automatizada
+
+[Insertar evidencia E24 - verificacion antes del backup]
+[Insertar evidencia E25 - backup generado]
+[Insertar evidencia E26 - restore con advertencia visible]
+[Insertar evidencia E27 - verificacion despues del restore]
+[Insertar evidencia E28 - runbook abierto]
+
+## 10. Salud de servicios y healthchecks HTTP
 
 Verificacion:
 
@@ -229,7 +282,7 @@ Interpretacion correcta:
 
 [Insertar evidencia E09 - health checks HTTP]
 
-## 10. Validacion funcional con Postman
+## 11. Validacion funcional con Postman
 
 Como no existe frontend, Postman sigue siendo el cliente operativo actual.
 
@@ -257,7 +310,7 @@ Flujo critico de negocio:
 [Insertar evidencia E10 - Postman importado]
 [Insertar evidencia E11 - flujo funcional principal]
 
-## 11. Redis cache
+## 12. Redis cache
 
 `course-service` ya utiliza Redis para listas de catalogo.
 
@@ -278,7 +331,7 @@ Lo que debe observarse:
 
 [Insertar evidencia E12 - llaves Redis]
 
-## 12. RabbitMQ y notification
+## 13. RabbitMQ y notification
 
 RabbitMQ ya participa en el flujo de evidencia del repositorio.
 
@@ -309,7 +362,7 @@ Logs esperados:
 [Insertar evidencia E13 - RabbitMQ bindings]
 [Insertar evidencia E14 - logs de publicacion y consumo]
 
-## 13. Validacion con k6
+## 14. Validacion con k6
 
 ### Smoke
 
@@ -351,7 +404,7 @@ Metricas minimas a reportar:
 [Insertar evidencia E16 - 50,000 requests]
 [Insertar evidencia E17 - concurrencia k6]
 
-## 14. Prometheus y Grafana
+## 15. Prometheus y Grafana
 
 Prometheus y Grafana forman parte del entorno local. En S21, Prometheus deja de ser solo infraestructura pasiva y pasa a scrapear metricas reales de los cinco microservicios cuando el modo HA readiness esta activo. Aun asi, esto no debe presentarse como una observabilidad completa de negocio o de produccion.
 
@@ -385,7 +438,7 @@ Estado honesto:
 [Insertar evidencia E19 - endpoints actuator prometheus]
 [Insertar evidencia E20 - Grafana accesible]
 
-## 15. Recuperacion y observacion de fallas
+## 16. Recuperacion y observacion de fallas
 
 ### Recuperacion manual de un servicio en modo HA readiness
 
@@ -415,11 +468,12 @@ Lo que se demuestra:
 
 - el catalogo puede seguir respondiendo aunque Redis este degradado
 - Redis puede recuperarse y reinsertar llaves despues del siguiente acceso
+- PostgreSQL ya tiene una ruta separada de recuperacion de datos mediante backup y restore local
 
 [Insertar evidencia E21 - reinicio y recuperacion de course-service]
 [Insertar evidencia E22 - fallback con Redis detenido]
 
-## 16. Limites actuales y mejoras futuras
+## 17. Limites actuales y mejoras futuras
 
 Los siguientes puntos deben quedar expresados como pendientes, no como trabajo ya completado:
 
@@ -428,18 +482,22 @@ Los siguientes puntos deben quedar expresados como pendientes, no como trabajo y
 - balanceador de carga
 - failover automatico
 - replicacion de PostgreSQL
+- backups programados
+- almacenamiento off-site
+- cifrado de backups
+- politicas formales de retencion
 - Redis cluster
 - RabbitMQ cluster
 - orquestacion con Kubernetes o Docker Swarm
 - dashboards Grafana listos para plataforma y negocio
 - alertas Prometheus/Grafana
 
-## 17. Conclusiones
+## 18. Conclusiones
 
-CampusEnroll HA ya puede presentarse como una solucion local `HA-ready` para la entrega: tiene infraestructura compartida endurecida, servicios de aplicacion contenedorizables, restart policies, healthchecks, cache Redis, eventos RabbitMQ, evidencia con Postman, validacion con k6 y metricas Prometheus reales en los cinco microservicios.
+CampusEnroll HA ya puede presentarse como una solucion local `HA-ready` para la entrega: tiene infraestructura compartida endurecida, servicios de aplicacion contenedorizables, restart policies, healthchecks, cache Redis, eventos RabbitMQ, evidencia con Postman, validacion con k6, metricas Prometheus reales en los cinco microservicios y una capa local de backup/restore para PostgreSQL.
 
 La conclusion correcta no es "ya existe alta disponibilidad real". La conclusion correcta es:
 
-`la plataforma ya demuestra readiness local, recuperacion operativa basica y una postura de observabilidad mas fuerte para la entrega final, pero la alta disponibilidad productiva sigue siendo una mejora futura.`
+`la plataforma ya demuestra readiness local, recuperacion operativa basica, recuperacion manual de datos PostgreSQL y una postura de observabilidad mas fuerte para la entrega final, pero la alta disponibilidad productiva sigue siendo una mejora futura.`
 
 [Insertar evidencia E23 - resumen final o cierre del PDF]
