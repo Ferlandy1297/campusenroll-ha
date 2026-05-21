@@ -6,8 +6,8 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 - Curso y seccion: `[Completar]`
 - Proyecto: CampusEnroll HA
-- Segmento: S20
-- Rol responsable: high availability readiness and Docker Compose hardening owner
+- Segmento: S21
+- Rol responsable: observability owner for Prometheus service metrics
 - Docente: `[Completar]`
 - Integrantes: `[Completar]`
 - Fecha: `[Completar]`
@@ -17,7 +17,7 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 ## 2. Resumen ejecutivo
 
-CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. En S20 el repositorio agrega una capa segura de readiness para alta disponibilidad local: los cinco microservicios Spring Boot ahora pueden ejecutarse como contenedores mediante un archivo Compose adicional, mientras `docker-compose.yml` conserva su papel original de infraestructura compartida.
+CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completa ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness.
 
 Mensaje central:
 
@@ -30,6 +30,8 @@ Mensaje central:
 - `docker-compose.apps.yml` agrega los cinco servicios de aplicacion en puertos `8081` a `8085`.
 - Infraestructura y aplicaciones usan `restart: unless-stopped`.
 - Infraestructura y aplicaciones exponen healthchecks verificables.
+- Los cinco servicios exponen `GET /actuator/health`, `GET /actuator/info` y `GET /actuator/prometheus`.
+- Prometheus scrapea `prometheus`, `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` en modo HA readiness.
 - `course-service` usa Redis como cache real.
 - `enrollment-service` y `billing-service` publican eventos RabbitMQ.
 - `notification` consume esos eventos y deja evidencia en logs.
@@ -38,8 +40,8 @@ Mensaje central:
 
 ### Configurado o preparado
 
-- Prometheus y Grafana estan disponibles como infraestructura local.
-- Compose ya permite demostrar arranque coordinado, estado de salud y recuperacion manual de servicios.
+- Grafana esta disponible como infraestructura local accesible.
+- Compose ya permite demostrar arranque coordinado, estado de salud, metricas Prometheus y recuperacion manual de servicios.
 
 ### Pendiente o mejora futura
 
@@ -49,17 +51,20 @@ Mensaje central:
 - cluster RabbitMQ
 - replicacion y failover de PostgreSQL
 - Kubernetes o Docker Swarm
-- scrapeo Prometheus de microservicios y dashboards Grafana listos
+- dashboards Grafana listos para plataforma y negocio
+- alertas Prometheus/Grafana
 - gateway operativo como entrypoint real
 
-## 3. Objetivo tecnico de S20
+## 3. Objetivo tecnico de S21
 
-El objetivo de este segmento no fue rehacer la arquitectura ni reemplazar el flujo Maven existente. El objetivo fue endurecer la postura local de alta disponibilidad demostrable con cambios pequenos y revisables:
+El objetivo de este segmento no fue rehacer la arquitectura ni reemplazar el flujo Maven existente. El objetivo fue completar la observabilidad base con cambios pequenos y revisables:
 
 1. conservar `docker-compose.yml` como modo estandar de infraestructura
-2. agregar un modo Compose adicional para aplicaciones
-3. incorporar restart policies y healthchecks verificables
-4. dejar evidencia clara de recuperacion por reinicio y validacion con k6
+2. conservar `docker-compose.apps.yml` como modo Compose adicional para aplicaciones
+3. mantener operativos los endpoints custom `GET /health`
+4. agregar exposicion Actuator segura para `health`, `info` y `prometheus`
+5. habilitar scrape real de Prometheus hacia las cinco aplicaciones por nombre de servicio Docker
+6. dejar evidencia clara de metricas, targets y limites actuales de observabilidad
 
 ## 4. Arquitectura operativa actual
 
@@ -75,6 +80,7 @@ La entrega final debe describirse con dos modos de ejecucion, no con una sola na
 - `docker-compose.yml` + `docker-compose.apps.yml` levantan infraestructura y los cinco servicios Spring Boot
 - cada servicio usa hostnames internos Docker como `postgres`, `redis` y `rabbitmq`
 - cada servicio tiene restart policy y healthcheck HTTP contra `GET /health`
+- Prometheus scrapea `/actuator/prometheus` de los cinco servicios por nombre interno Docker
 
 Tabla de componentes:
 
@@ -89,15 +95,15 @@ Tabla de componentes:
 | PostgreSQL | Implementado | Persistencia principal y healthcheck |
 | Redis | Implementado | Cache de lectura y healthcheck |
 | RabbitMQ | Implementado | Broker de eventos y healthcheck |
-| Prometheus | Parcial | Infra disponible con healthcheck |
-| Grafana | Parcial | Infra disponible con healthcheck |
+| Prometheus | Implementado con alcance local | Infra disponible, healthcheck activo y scrape real de los cinco microservicios en HA readiness mode |
+| Grafana | Parcial | UI accesible; dashboards y alertas siguen pendientes |
 
 [Insertar evidencia E02 - compose base e infraestructura]
 [Insertar evidencia E03 - compose apps con servicios Spring Boot]
 
-## 5. Infraestructura y endurecimiento Compose
+## 5. Infraestructura, endurecimiento Compose y observabilidad S21
 
-Los cambios de S20 se enfocan en robustecer el entorno local sin romper el workflow actual:
+Los cambios acumulados hasta S21 se enfocan en robustecer el entorno local sin romper el workflow actual:
 
 - `restart: unless-stopped` para infraestructura y aplicaciones
 - healthcheck de PostgreSQL con `pg_isready`
@@ -106,6 +112,9 @@ Los cambios de S20 se enfocan en robustecer el entorno local sin romper el workf
 - healthcheck de Prometheus con `http://localhost:9090/-/healthy`
 - healthcheck de Grafana con `http://localhost:3000/api/health`
 - healthchecks HTTP de servicios de aplicacion contra `GET /health`
+- Actuator habilitado para `health`, `info` y `prometheus`
+- Micrometer Prometheus registry agregado en los cinco microservicios
+- scrape Prometheus apuntando a `student-service:8081`, `course-service:8082`, `enrollment-service:8083`, `billing-service:8084` y `notification:8085`
 
 Puertos operativos relevantes:
 
@@ -344,11 +353,17 @@ Metricas minimas a reportar:
 
 ## 14. Prometheus y Grafana
 
-Prometheus y Grafana forman parte del entorno local y en S20 ya tienen restart policy y healthcheck. Aun asi, no deben presentarse como una observabilidad completa del negocio.
+Prometheus y Grafana forman parte del entorno local. En S21, Prometheus deja de ser solo infraestructura pasiva y pasa a scrapear metricas reales de los cinco microservicios cuando el modo HA readiness esta activo. Aun asi, esto no debe presentarse como una observabilidad completa de negocio o de produccion.
 
 Prometheus:
 
 ```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml restart prometheus
+curl.exe http://localhost:8081/actuator/prometheus
+curl.exe http://localhost:8082/actuator/prometheus
+curl.exe http://localhost:8083/actuator/prometheus
+curl.exe http://localhost:8084/actuator/prometheus
+curl.exe http://localhost:8085/actuator/prometheus
 Start-Process 'http://localhost:9090/targets'
 ```
 
@@ -360,12 +375,15 @@ Start-Process 'http://localhost:3000'
 
 Estado honesto:
 
-- Prometheus y Grafana si estan disponibles y verificables
-- el repo todavia no entrega scrapeo completo de microservicios
-- el repo todavia no entrega dashboards de negocio listos
+- Prometheus ya scrapea `prometheus` y las cinco aplicaciones en modo HA readiness
+- los endpoints `GET /actuator/prometheus` tambien pueden verificarse desde host en `localhost:8081` a `localhost:8085`
+- el workflow Maven local sigue intacto, pero los targets por nombre de servicio Docker solo apareceran `UP` cuando `docker-compose.apps.yml` este activo
+- si el contenedor de Prometheus ya estaba corriendo desde antes, puede requerir un reinicio puntual para recargar la `prometheus.yml` montada
+- Grafana sigue accesible, pero el repo todavia no entrega dashboards de negocio ni alertas listas
 
 [Insertar evidencia E18 - Prometheus targets]
-[Insertar evidencia E19 - Grafana accesible]
+[Insertar evidencia E19 - endpoints actuator prometheus]
+[Insertar evidencia E20 - Grafana accesible]
 
 ## 15. Recuperacion y observacion de fallas
 
@@ -398,8 +416,8 @@ Lo que se demuestra:
 - el catalogo puede seguir respondiendo aunque Redis este degradado
 - Redis puede recuperarse y reinsertar llaves despues del siguiente acceso
 
-[Insertar evidencia E20 - reinicio y recuperacion de course-service]
-[Insertar evidencia E21 - fallback con Redis detenido]
+[Insertar evidencia E21 - reinicio y recuperacion de course-service]
+[Insertar evidencia E22 - fallback con Redis detenido]
 
 ## 16. Limites actuales y mejoras futuras
 
@@ -413,15 +431,15 @@ Los siguientes puntos deben quedar expresados como pendientes, no como trabajo y
 - Redis cluster
 - RabbitMQ cluster
 - orquestacion con Kubernetes o Docker Swarm
-- Prometheus scrapeando todos los microservicios
 - dashboards Grafana listos para plataforma y negocio
+- alertas Prometheus/Grafana
 
 ## 17. Conclusiones
 
-CampusEnroll HA ya puede presentarse como una solucion local `HA-ready` para la entrega: tiene infraestructura compartida endurecida, servicios de aplicacion contenedorizables, restart policies, healthchecks, cache Redis, eventos RabbitMQ, evidencia con Postman, validacion con k6 y observabilidad base con Prometheus y Grafana.
+CampusEnroll HA ya puede presentarse como una solucion local `HA-ready` para la entrega: tiene infraestructura compartida endurecida, servicios de aplicacion contenedorizables, restart policies, healthchecks, cache Redis, eventos RabbitMQ, evidencia con Postman, validacion con k6 y metricas Prometheus reales en los cinco microservicios.
 
 La conclusion correcta no es "ya existe alta disponibilidad real". La conclusion correcta es:
 
-`la plataforma ya demuestra readiness local, recuperacion operativa basica y una postura tecnica mas fuerte para la entrega final, pero la alta disponibilidad productiva sigue siendo una mejora futura.`
+`la plataforma ya demuestra readiness local, recuperacion operativa basica y una postura de observabilidad mas fuerte para la entrega final, pero la alta disponibilidad productiva sigue siendo una mejora futura.`
 
-[Insertar evidencia E22 - resumen final o cierre del PDF]
+[Insertar evidencia E23 - resumen final o cierre del PDF]

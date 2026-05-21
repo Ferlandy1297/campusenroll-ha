@@ -21,16 +21,18 @@ Usar estos placeholders dentro de `CHECKPOINT_1_PDF_READY.md` o en el anexo del 
 | `E15` | `15_k6_smoke.png` | Resumen de smoke test. |
 | `E16` | `16_k6_50000.png` | Resumen del escenario de 50,000 requests. |
 | `E17` | `17_k6_concurrent.png` | Resumen del escenario concurrente. |
-| `E18` | `18_prometheus_targets.png` | UI de Prometheus con targets. |
-| `E19` | `19_grafana_access.png` | UI de Grafana accesible. |
-| `E20` | `20_course_recovery.png` | `course-service` detenido, reiniciado y saludable otra vez. |
-| `E21` | `21_redis_fallback.png` | Redis detenido y `GET /api/courses` respondiendo. |
-| `E22` | `22_final_summary.png` | Seccion de conclusiones o resumen final del PDF. |
+| `E18` | `18_prometheus_targets.png` | UI de Prometheus con `prometheus` y las cinco apps en `UP`. |
+| `E19` | `19_actuator_prometheus.png` | Respuestas de `/actuator/prometheus` en los cinco servicios. |
+| `E20` | `20_grafana_access.png` | UI de Grafana accesible. |
+| `E21` | `21_course_recovery.png` | `course-service` detenido, reiniciado y saludable otra vez. |
+| `E22` | `22_redis_fallback.png` | Redis detenido y `GET /api/courses` respondiendo. |
+| `E23` | `23_final_summary.png` | Seccion de conclusiones o resumen final del PDF. |
 
 ## Reglas de uso
 
 - No afirmar alta disponibilidad productiva; describir el estado como `HA-ready` y demostrable.
 - No inventar replicas, balanceadores, clusters o failover si no fueron implementados.
+- Si `docker-compose.apps.yml` no estaba activo, no afirmar que los cinco targets de aplicaciones estaban `UP` en Prometheus.
 - Cuando la cola `notification.events` ya este consumida, combinar UI o `rabbitmqctl` con logs del consumidor.
 - Si el volumen PostgreSQL era nuevo, dejar visible que `db/schema.sql` y `db/data.sql` fueron cargados.
 - Si el puerto PostgreSQL local no es `5432`, dejar visible el `POSTGRES_PORT` real en alguna captura.

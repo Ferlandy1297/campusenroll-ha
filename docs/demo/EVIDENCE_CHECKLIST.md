@@ -1,4 +1,4 @@
-# Evidence Checklist - Entrega Final S20
+# Evidence Checklist - Entrega Final S21
 
 ## Instrucciones
 
@@ -9,7 +9,7 @@ Guardar capturas o salidas con nombres estables. Cuando sea posible, incluir el 
 | Check | Nombre sugerido | Que capturar |
 | --- | --- | --- |
 | [ ] | `01_repo_root.png` | Raiz del repo con `backend/`, `db/`, `docs/`, `infra/`, `postman/` y los dos Compose files. |
-| [ ] | `02_readme_s20.png` | `README.md` actualizado con standard mode y HA readiness mode. |
+| [ ] | `02_readme_s21.png` | `README.md` actualizado con standard mode, HA readiness mode y metricas Prometheus por servicio. |
 | [ ] | `03_ha_compose_file.png` | Fragmento de `docker-compose.apps.yml` con servicios, restart policy y healthchecks. |
 
 ## 2. Standard mode: infraestructura compartida
@@ -96,16 +96,17 @@ Guardar capturas o salidas con nombres estables. Cuando sea posible, incluir el 
 
 | Check | Nombre sugerido | Que capturar |
 | --- | --- | --- |
-| [ ] | `39_prometheus_targets.png` | `http://localhost:9090/targets` con `prometheus` en `UP`. |
-| [ ] | `40_grafana_access.png` | `http://localhost:3000` accesible. |
+| [ ] | `39_actuator_prometheus.png` | Las cinco respuestas `GET /actuator/prometheus` con metricas no vacias. |
+| [ ] | `40_prometheus_targets_apps.png` | `http://localhost:9090/targets` con `prometheus`, `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` en `UP`. |
+| [ ] | `41_grafana_access.png` | `http://localhost:3000` accesible. |
 
 ## 12. Falla controlada de infraestructura
 
 | Check | Nombre sugerido | Que capturar |
 | --- | --- | --- |
-| [ ] | `41_redis_stopped.png` | `docker compose stop redis` y estado del contenedor detenido. |
-| [ ] | `42_courses_with_redis_down.png` | `GET /api/courses` funcionando con Redis caido. |
-| [ ] | `43_redis_recovered.png` | Redis reiniciado y llaves reapareciendo. |
+| [ ] | `42_redis_stopped.png` | `docker compose stop redis` y estado del contenedor detenido. |
+| [ ] | `43_courses_with_redis_down.png` | `GET /api/courses` funcionando con Redis caido. |
+| [ ] | `44_redis_recovered.png` | Redis reiniciado y llaves reapareciendo. |
 
 ## 13. Mensaje final honesto
 
@@ -114,8 +115,11 @@ Verificar que las capturas permitan sostener estas afirmaciones:
 - `docker-compose.yml` sigue siendo standard mode para infraestructura compartida.
 - `docker-compose.apps.yml` agrega un modo demostrable de HA readiness para los cinco servicios Spring Boot.
 - Existen restart policies y healthchecks tanto en infraestructura como en servicios de aplicacion.
+- S21 agrega metricas Prometheus reales en los cinco microservicios.
+- Los targets de Prometheus muestran a las cinco apps en `UP` cuando el modo HA readiness esta activo.
 - Redis si esta integrado en `course-service`.
 - RabbitMQ si esta integrado para publicacion y consumo de eventos de evidencia.
+- Grafana sigue accesible, pero dashboards y alertas de negocio siguen pendientes.
 - k6, Prometheus y Grafana existen como activos reales del repo.
 - El estado actual es `HA-ready` para entrega local, no alta disponibilidad productiva.
 - Siguen pendientes replicas reales, balanceador, cluster Redis, cluster RabbitMQ y failover PostgreSQL.

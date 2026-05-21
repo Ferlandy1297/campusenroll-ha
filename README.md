@@ -9,6 +9,7 @@ CampusEnroll HA ya tiene una base funcional para:
 - `enrollment-service` con inscripciones y publicacion de `EnrollmentCreatedEvent`
 - `billing-service` con cobros y publicacion de `BillingStatusChangedEvent`
 - `notification` como consumidor RabbitMQ para evidencia y logs
+- metricas reales Actuator/Prometheus en los cinco microservicios
 - `db/schema.sql` y `db/data.sql` para carga determinista de PostgreSQL
 - `postman/` como cliente operativo actual
 - `infra/k6/` como paquete de validacion final
@@ -58,6 +59,8 @@ Importante:
 - este modo es `HA-ready` y demostrable para la entrega, no alta disponibilidad productiva
 - la primera ejecucion sobre un volumen PostgreSQL nuevo todavia requiere cargar `db/schema.sql` y `db/data.sql`
 - el workflow con Maven local sigue siendo valido y no fue removido
+- Prometheus scrapea `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` por nombre interno Docker cuando este modo esta activo
+- si Prometheus ya estaba corriendo antes del cambio de configuracion, reinicialo una vez con `docker compose -f docker-compose.yml -f docker-compose.apps.yml restart prometheus`
 
 ## Flujo local recomendado
 
@@ -67,8 +70,9 @@ Importante:
 4. Elegir uno de estos caminos:
    - ejecutar servicios localmente con `mvn spring-boot:run`
    - ejecutar servicios con `docker-compose.apps.yml`
-5. Verificar salud con `GET /health`.
-6. Ejecutar Postman, Redis, RabbitMQ, k6 y la evidencia final.
+5. Verificar salud con `GET /health` y endpoints Actuator.
+6. Verificar Prometheus en `http://localhost:9090/targets` si el modo HA readiness esta activo.
+7. Ejecutar Postman, Redis, RabbitMQ, k6 y la evidencia final.
 
 Carga de base de datos:
 
@@ -87,15 +91,27 @@ curl.exe http://localhost:8084/health
 curl.exe http://localhost:8085/health
 ```
 
+Actuator metrics:
+
+```powershell
+curl.exe http://localhost:8081/actuator/prometheus
+curl.exe http://localhost:8082/actuator/prometheus
+curl.exe http://localhost:8083/actuator/prometheus
+curl.exe http://localhost:8084/actuator/prometheus
+curl.exe http://localhost:8085/actuator/prometheus
+```
+
 ## Que esta implementado
 
 - `restart: unless-stopped` en infraestructura y servicios de aplicacion en modo Compose
 - healthchecks para PostgreSQL, Redis, RabbitMQ, Prometheus, Grafana y los cinco servicios Spring Boot
 - contenedorizacion de los cinco servicios de negocio mediante `docker-compose.apps.yml`
+- endpoints `GET /actuator/health`, `GET /actuator/info` y `GET /actuator/prometheus` en los cinco servicios
+- Prometheus scrapeando metricas reales de los cinco microservicios en modo HA readiness
 - Redis real en `course-service`
 - RabbitMQ real para publicacion y consumo de eventos de evidencia
 - k6 como paquete de validacion final
-- Prometheus y Grafana como infraestructura disponible
+- Grafana accesible como infraestructura disponible
 
 ## Que sigue siendo mejora futura
 
@@ -105,13 +121,15 @@ curl.exe http://localhost:8085/health
 - RabbitMQ cluster
 - balanceador real con replicas multiples
 - Kubernetes o Docker Swarm
-- scrapeo Prometheus de microservicios y dashboards Grafana listos
+- dashboards Grafana listos para plataforma y negocio
+- alertas Prometheus/Grafana
 - gateway operativo como entrypoint real
 
 ## URLs utiles
 
 - RabbitMQ Management UI: `http://localhost:15672`
 - Prometheus: `http://localhost:9090`
+- Prometheus targets: `http://localhost:9090/targets`
 - Grafana: `http://localhost:3000`
 
 ## Documentacion recomendada

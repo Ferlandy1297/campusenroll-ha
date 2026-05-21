@@ -1,12 +1,12 @@
-# Demo Script - Entrega Final S20
+# Demo Script - Entrega Final S21
 
 ## Objetivo
 
-Exponer en 5 a 8 minutos el estado real de CampusEnroll HA despues de S20, sin sobredeclarar cluster, failover o observabilidad que el repo aun no entrega.
+Exponer en 5 a 8 minutos el estado real de CampusEnroll HA despues de S21, sin sobredeclarar cluster, failover u observabilidad de nivel productivo que el repo aun no entrega.
 
 Mensaje central:
 
-`CampusEnroll HA ya tiene flujo funcional, cache Redis, eventos RabbitMQ, healthchecks y un modo Compose adicional para readiness local; eso no equivale todavia a alta disponibilidad productiva.`
+`CampusEnroll HA ya tiene flujo funcional, cache Redis, eventos RabbitMQ, healthchecks, modo Compose HA-ready y metricas Prometheus reales por microservicio; eso no equivale todavia a alta disponibilidad productiva.`
 
 ## 0. Preparacion previa
 
@@ -25,7 +25,7 @@ Antes de iniciar la demo:
 
 Guion sugerido:
 
-"Este es CampusEnroll HA. La base actual ya permite demostrar estudiantes, catalogo, inscripciones y cobros. En S20, ademas, el repositorio agrega un modo Compose para levantar tambien los cinco microservicios Spring Boot con restart policy y healthchecks, sin romper el workflow Maven local."
+"Este es CampusEnroll HA. La base actual ya permite demostrar estudiantes, catalogo, inscripciones y cobros. S20 agrego el modo Compose para levantar tambien los cinco microservicios Spring Boot con restart policy y healthchecks. S21 completa esa base con metricas Prometheus reales en los cinco servicios, sin romper el workflow Maven local."
 
 Mostrar:
 
@@ -112,12 +112,13 @@ Mostrar:
 
 Guion sugerido:
 
-"El repo tambien trae activos de validacion final. Ya existen scripts k6, Prometheus y Grafana, pero eso no significa que hoy ya tengamos observabilidad completa ni plataforma multinodo."
+"El repo tambien trae activos de validacion final. En S21, Prometheus ya scrapea metricas reales de los cinco servicios cuando el modo HA readiness esta activo. Grafana sigue disponible, pero dashboards y alertas siguen pendientes."
 
 Mostrar:
 
 - `infra/k6/README.md`
 - resumen de una ejecucion k6
+- `curl.exe http://localhost:8081/actuator/prometheus`
 - `http://localhost:9090/targets`
 - `http://localhost:3000`
 
@@ -125,7 +126,7 @@ Mostrar:
 
 Guion sugerido:
 
-"La evidencia final de S20 incluye detener y levantar `course-service` dentro del stack Compose, y tambien la degradacion controlada de Redis para mostrar recuperacion operativa basica."
+"La evidencia final de S21 incluye metricas Prometheus reales por servicio, detener y levantar `course-service` dentro del stack Compose, y tambien la degradacion controlada de Redis para mostrar recuperacion operativa basica."
 
 Mostrar:
 
@@ -136,4 +137,4 @@ Mostrar:
 
 Cierre sugerido:
 
-"En conclusion, CampusEnroll HA ya es demostrable como plataforma local HA-ready: tiene empaquetado por servicio, restart policies, healthchecks, cache Redis, eventos RabbitMQ y activos reales de validacion. Lo que sigue pendiente es la alta disponibilidad productiva con replicas, balanceo, clusters y failover."
+"En conclusion, CampusEnroll HA ya es demostrable como plataforma local HA-ready: tiene empaquetado por servicio, restart policies, healthchecks, cache Redis, eventos RabbitMQ, metricas Prometheus reales y activos de validacion. Lo que sigue pendiente es la alta disponibilidad productiva con replicas, balanceo, alertas, dashboards, clusters y failover."
