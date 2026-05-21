@@ -151,7 +151,14 @@ Recommended S18 observation:
 
 ## Docker Fallback
 
-If `k6` is not installed locally, use the Docker image and point requests to `host.docker.internal`:
+If `k6` is not installed locally, use the Docker image and point requests to `host.docker.internal`.
+
+PowerShell note:
+
+- avoid `docker run ... run - < file.js`; stdin redirection in that form is not reliable in Windows PowerShell
+- prefer a mounted volume and a script path inside the container
+
+Smoke test example:
 
 ```powershell
 docker run --rm -i `
@@ -165,6 +172,8 @@ docker run --rm -i `
 ```
 
 Replace `/scripts/smoke-test.js` with the script you want to run.
+
+If you run k6 on the Compose network instead of through published host ports, attach `--network <compose-network>` and replace `host.docker.internal` with the Docker service names.
 
 ## Notes
 

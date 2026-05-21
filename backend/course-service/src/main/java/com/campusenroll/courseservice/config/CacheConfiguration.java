@@ -1,9 +1,14 @@
 package com.campusenroll.courseservice.config;
 
 import com.campusenroll.courseservice.catalog.cache.CatalogCacheNames;
+import com.campusenroll.courseservice.catalog.dto.AcademicPeriodResponse;
+import com.campusenroll.courseservice.catalog.dto.CourseResponse;
+import com.campusenroll.courseservice.catalog.dto.SectionResponse;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.time.Duration;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,7 +18,8 @@ import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
@@ -21,17 +27,12 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 public class CacheConfiguration {
 
     @Bean
-    RedisCacheConfiguration redisCacheConfiguration(@Value("${app.cache.ttl-seconds:300}") long ttlSeconds) {
-        ObjectMapper objectMapper = JsonMapper.builder()
-                .findAndAddModules()
-                .build();
-
+    RedisCacheConfiguration redisCacheConfiguration(
+            @Value("${app.cache.ttl-seconds:300}") long ttlSeconds) {
         return RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofSeconds(ttlSeconds))
                 .disableCachingNullValues()
-                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(
-                        new GenericJackson2JsonRedisSerializer(objectMapper)));
+                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()));
     }
 
     @Bean
@@ -39,14 +40,37 @@ public class CacheConfiguration {
             RedisCacheConfiguration redisCacheConfiguration) {
         return builder -> builder
                 .cacheDefaults(redisCacheConfiguration)
-                .withCacheConfiguration(CatalogCacheNames.COURSES, redisCacheConfiguration)
-                .withCacheConfiguration(CatalogCacheNames.ACADEMIC_PERIODS, redisCacheConfiguration)
-                .withCacheConfiguration(CatalogCacheNames.SECTIONS, redisCacheConfiguration);
+                .withCacheConfiguration(
+                        CatalogCacheNames.COURSES,
+                        catalogCacheConfiguration(redisCacheConfiguration, CourseResponse.class))
+                .withCacheConfiguration(
+                        CatalogCacheNames.ACADEMIC_PERIODS,
+                        catalogCacheConfiguration(redisCacheConfiguration, AcademicPeriodResponse.class))
+                .withCacheConfiguration(
+                        CatalogCacheNames.SECTIONS,
+                        catalogCacheConfiguration(redisCacheConfiguration, SectionResponse.class));
     }
 
     @Bean
     CacheErrorHandler cacheErrorHandler() {
         return new LoggingCacheErrorHandler();
+    }
+
+    RedisSerializer<Object> redisListValueSerializer(Class<?> elementType) {
+        ObjectMapper objectMapper = JsonMapper.builder()
+                .findAndAddModules()
+                .build();
+        JavaType javaType = objectMapper.getTypeFactory()
+                .constructCollectionType(List.class, elementType);
+
+        return new Jackson2JsonRedisSerializer<>(objectMapper, javaType);
+    }
+
+    private RedisCacheConfiguration catalogCacheConfiguration(
+            RedisCacheConfiguration baseConfiguration,
+            Class<?> elementType) {
+        return baseConfiguration.serializeValuesWith(
+                RedisSerializationContext.SerializationPair.fromSerializer(redisListValueSerializer(elementType)));
     }
 
     private static final class LoggingCacheErrorHandler implements CacheErrorHandler {

@@ -370,6 +370,23 @@ Logs esperados:
 k6 run .\infra\k6\smoke-test.js
 ```
 
+### Smoke con Docker si `k6` no esta instalado
+
+En Windows PowerShell, evitar `docker run ... run - < archivo.js`. La forma estable es montar `infra/k6` como volumen y apuntar a `host.docker.internal`:
+
+```powershell
+docker run --rm -i `
+  -e STUDENT_SERVICE_URL=http://host.docker.internal:8081 `
+  -e COURSE_SERVICE_URL=http://host.docker.internal:8082 `
+  -e ENROLLMENT_SERVICE_URL=http://host.docker.internal:8083 `
+  -e BILLING_SERVICE_URL=http://host.docker.internal:8084 `
+  -e NOTIFICATION_SERVICE_URL=http://host.docker.internal:8085 `
+  -v "${PWD}/infra/k6:/scripts" `
+  grafana/k6 run /scripts/smoke-test.js
+```
+
+Si el equipo decide correr k6 dentro de la red Compose, agregar `--network <compose-network>` y usar nombres de servicio Docker en lugar de `host.docker.internal`.
+
 ### Exact 50,000 requests
 
 ```powershell
