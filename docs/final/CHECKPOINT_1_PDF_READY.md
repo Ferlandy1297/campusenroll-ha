@@ -17,7 +17,7 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 ## 2. Resumen ejecutivo
 
-CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completo ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness. S22 agrega una capa practica de backup, restore y recuperacion ante desastres para PostgreSQL.
+CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completo ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness. S22 agrega una capa practica de backup, restore y recuperacion ante desastres para PostgreSQL. S28 activa reglas reales de Prometheus y S29 agrega `Idempotency-Key` para escrituras criticas seleccionadas.
 
 Mensaje central:
 
@@ -34,6 +34,7 @@ Mensaje central:
 - Prometheus scrapea `prometheus`, `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` en modo HA readiness.
 - `course-service` usa Redis como cache real.
 - `enrollment-service` y `billing-service` publican eventos RabbitMQ.
+- `POST /api/enrollments` y `POST /api/billings` aceptan `Idempotency-Key` y pueden reemitir la misma respuesta sin duplicar la operacion.
 - `notification` consume esos eventos y deja evidencia en logs.
 - `infra/backups/backup-postgres.ps1` crea dumps locales de PostgreSQL.
 - `infra/backups/restore-postgres.ps1` restaura un dump seleccionado con advertencia visible.
@@ -54,6 +55,8 @@ Mensaje central:
 - cluster Redis
 - cluster RabbitMQ
 - replicacion y failover de PostgreSQL
+- outbox transaccional
+- compensacion completa de sagas
 - backups programados
 - almacenamiento off-site
 - cifrado de backups

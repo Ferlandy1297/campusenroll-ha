@@ -16,7 +16,7 @@
 
 - MVCC and ACID are present through PostgreSQL and transactional service methods, but the repo does not yet explain them in CampusEnroll terms. The team should connect the theory to `@Transactional` code and the centralized database.
 - Isolation-level coverage is implicit, not explicit. PostgreSQL behavior exists underneath the system, but the repo does not show a short CampusEnroll-specific explanation of `READ COMMITTED`, repeatable reads, or serialization tradeoffs.
-- Idempotency needs tighter language. Current protections are mostly uniqueness constraints plus save ordering, not full idempotency keys or outbox semantics.
+- Idempotency wording now needs a narrower explanation. S29 implements `Idempotency-Key` for selected critical endpoints, but the repo still does not implement a transactional outbox or full endpoint coverage.
 - Saga versus choreography needs a careful explanation. RabbitMQ is real in the repo, but the current flow is lightweight choreography for evidence, not a full compensated saga.
 - RPO and RTO are documented in the disaster recovery runbook, but the team still needs to explain them clearly as local academic targets, not automated production guarantees.
 - Academic HA versus production HA needs constant discipline. The project demonstrates application-level continuity for `course-service`, not database replication, cluster-wide failover, or platform-grade HA.
@@ -27,7 +27,7 @@
 - Add a docs-only EXPLAIN appendix for two or three representative CampusEnroll queries. This would directly cover the course topic without changing runtime code.
 - Add a docs-only index rationale note. The schema already has useful active, foreign-key, timestamp, and partial unique indexes, but the presentation would benefit from one page that explains why they exist.
 - Add a docs-only concurrency note that ties `uq_enrollments_active_student_section`, `saveAndFlush`, and `infra/k6/concurrent-enrollment-test.js` together.
-- Add a docs-only idempotency note that explains what the project already prevents and what it does not prevent.
+- Add a short demo note or screenshot set that shows the live `Idempotency-Key` replay and the `idempotency_records` table side by side.
 - Add a docs-only DCL/security note. Even a small appendix with recommended roles and `GRANT` examples would improve alignment with the course without forcing schema change in this phase.
 - S27 and S28 already closed the SLO and alerting documentation gap with a real Prometheus rules file plus updated presentation-safe wording.
 - Refresh or annotate stale diagrams and early planning docs in a later docs-only segment so they stop understating the current runtime state.

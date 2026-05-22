@@ -6,6 +6,8 @@ import com.campusenroll.billing.billing.dto.UpdateBillingStatusRequest;
 import com.campusenroll.billing.messaging.BillingEventPublisher;
 import com.campusenroll.billing.error.ConflictException;
 import com.campusenroll.billing.error.ResourceNotFoundException;
+import com.campusenroll.billing.idempotency.IdempotentResponse;
+import com.campusenroll.billing.idempotency.IdempotencyService;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -16,12 +18,20 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class BillingService {
 
+    private static final String SERVICE_NAME = "billing-service";
+    private static final String CREATE_OPERATION = "create-billing";
+
     private final BillingRepository billingRepository;
     private final BillingEventPublisher billingEventPublisher;
+    private final IdempotencyService idempotencyService;
 
-    public BillingService(BillingRepository billingRepository, BillingEventPublisher billingEventPublisher) {
+    public BillingService(
+            BillingRepository billingRepository,
+            BillingEventPublisher billingEventPublisher,
+            IdempotencyService idempotencyService) {
         this.billingRepository = billingRepository;
         this.billingEventPublisher = billingEventPublisher;
+        this.idempotencyService = idempotencyService;
     }
 
     @Transactional(readOnly = true)
@@ -38,6 +48,21 @@ public class BillingService {
 
     @Transactional
     public BillingResponse create(CreateBillingRequest request) {
+        return createBilling(request);
+    }
+
+    @Transactional
+    public IdempotentResponse<BillingResponse> create(CreateBillingRequest request, String idempotencyKey) {
+        return idempotencyService.execute(
+                SERVICE_NAME,
+                CREATE_OPERATION,
+                idempotencyKey,
+                request,
+                BillingResponse.class,
+                () -> IdempotentResponse.created(createBilling(request)));
+    }
+
+    private BillingResponse createBilling(CreateBillingRequest request) {
         if (request.getStatus() == BillingStatus.PENDING
                 && billingRepository.existsByEnrollmentIdAndStatus(request.getEnrollmentId(), BillingStatus.PENDING)) {
             throw new ConflictException("An active billing already exists for this enrollment");
@@ -78,7 +103,7 @@ public class BillingService {
 
     private BillingResponse saveBilling(Billing billing) {
         try {
-            return toResponse(billingRepository.save(billing));
+            return toResponse(billingRepository.saveAndFlush(billing));
         } catch (DataIntegrityViolationException ex) {
             if (billing.getStatus() == BillingStatus.PENDING) {
                 throw new ConflictException("An active billing already exists for this enrollment");

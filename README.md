@@ -8,6 +8,7 @@ CampusEnroll HA ya tiene una base funcional para:
 - `course-service` con catalogo academico y cache Redis
 - `enrollment-service` con inscripciones y publicacion de `EnrollmentCreatedEvent`
 - `billing-service` con cobros y publicacion de `BillingStatusChangedEvent`
+- `Idempotency-Key` real en `POST /api/enrollments` y `POST /api/billings`
 - `notification` como consumidor RabbitMQ para evidencia y logs
 - metricas reales Actuator/Prometheus en los cinco microservicios
 - `db/schema.sql` y `db/data.sql` para carga determinista de PostgreSQL
@@ -224,3 +225,4 @@ Mensaje honesto:
 - `docs/course-audit/`
 - `docs/course-audit/S27_EVIDENCE_SUMMARY.md`
 - `docs/course-audit/SLO_ALERTING_PROPOSAL.md`
+- `docs/course-audit/TRANSACTIONS_CONCURRENCY_IDEMPOTENCY.md`
