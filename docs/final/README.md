@@ -23,6 +23,7 @@ El contenido esta alineado con el estado real del repo:
 - RabbitMQ si participa en publicacion y consumo de eventos de evidencia
 - Postman sigue siendo el cliente actual
 - Prometheus y Grafana siguen siendo infraestructura disponible
+- reglas activas de Prometheus ya existen, pero Alertmanager y dashboards productivos siguen pendientes
 - S22 agrega backup, restore y runbook de recuperacion para PostgreSQL
 - la plataforma es demostrable como `HA-ready`, no como HA productiva
 

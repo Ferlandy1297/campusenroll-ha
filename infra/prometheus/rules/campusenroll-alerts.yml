@@ -1,0 +1,97 @@
+groups:
+  - name: campusenroll-availability
+    rules:
+      - alert: CampusEnrollServiceDown
+        expr: up{job=~"student-service|course-service|enrollment-service|billing-service|notification"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          layer: application
+        annotations:
+          summary: "CampusEnroll service target is down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been down for more than 2 minutes."
+
+      - alert: CampusEnrollPrometheusTargetMissing
+        expr: |
+          absent(up{job="prometheus"})
+          or absent(up{job="student-service"})
+          or absent(up{job="course-service"})
+          or absent(up{job="enrollment-service"})
+          or absent(up{job="billing-service"})
+          or absent(up{job="notification"})
+        for: 2m
+        labels:
+          severity: warning
+          layer: observability
+        annotations:
+          summary: "Expected CampusEnroll Prometheus target is missing"
+          description: "Prometheus does not currently expose the expected target series for job {{ $labels.job }}."
+
+  - name: campusenroll-http
+    rules:
+      - alert: CampusEnrollHighHttpErrorRate
+        expr: |
+          (
+            sum by (job) (
+              rate(http_server_requests_seconds_count{
+                job=~"student-service|course-service|enrollment-service|billing-service|notification",
+                status=~"5..",
+                uri!~"/actuator/prometheus|/actuator/health|/actuator/info|/health",
+                uri!="UNKNOWN"
+              }[5m])
+            )
+            /
+            clamp_min(
+              sum by (job) (
+                rate(http_server_requests_seconds_count{
+                  job=~"student-service|course-service|enrollment-service|billing-service|notification",
+                  uri!~"/actuator/prometheus|/actuator/health|/actuator/info|/health",
+                  uri!="UNKNOWN"
+                }[5m])
+              ),
+              0.001
+            )
+          ) > 0.01
+          and on (job)
+          sum by (job) (
+            rate(http_server_requests_seconds_count{
+              job=~"student-service|course-service|enrollment-service|billing-service|notification",
+              uri!~"/actuator/prometheus|/actuator/health|/actuator/info|/health",
+              uri!="UNKNOWN"
+            }[5m])
+          ) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          layer: application
+        annotations:
+          summary: "CampusEnroll HTTP 5xx rate is above 1 percent"
+          description: "{{ $labels.job }} is above the current 1 percent 5xx error-rate objective over the last 5 minutes."
+
+      - alert: CampusEnrollHighP95Latency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (job, le) (
+              rate(http_server_requests_seconds_bucket{
+                job=~"student-service|course-service|enrollment-service|billing-service|notification",
+                uri!~"/actuator/prometheus|/actuator/health|/actuator/info|/health",
+                uri!="UNKNOWN"
+              }[5m])
+            )
+          ) > 1.5
+          and on (job)
+          sum by (job) (
+            rate(http_server_requests_seconds_count{
+              job=~"student-service|course-service|enrollment-service|billing-service|notification",
+              uri!~"/actuator/prometheus|/actuator/health|/actuator/info|/health",
+              uri!="UNKNOWN"
+            }[5m])
+          ) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          layer: application
+        annotations:
+          summary: "CampusEnroll p95 latency is above 1.5 seconds"
+          description: "{{ $labels.job }} exceeded the current p95 latency objective over the last 5 minutes."

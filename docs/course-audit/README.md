@@ -84,7 +84,7 @@ Several course topics are present only as explanation, planning, or future recom
 - idempotency keys and durable outbox style delivery
 - DCL role/grant scripts
 - EXPLAIN, BUFFERS, and CPU-vs-I/O evidence packages for current queries
-- SLOs and alert rules
+- SLO definitions and active Prometheus alert rules
 - PostgreSQL replication, read replicas, and database failover
 
 ## What Should Stay Future Production Work
@@ -104,7 +104,7 @@ The following topics belong in a future production roadmap, not in a last-minute
 - Application failover is not the same as database failover.
 - Backup and restore are not the same as automatic failover.
 - RabbitMQ event flow here is closer to lightweight choreography than to a complete saga platform.
-- Grafana is available infrastructure, but dashboards and alerting are still incomplete.
+- Grafana is available infrastructure, and Prometheus alert rules are now implemented, but Alertmanager routing and production-complete dashboards are still incomplete.
 - Older S00 and early-planning files still exist in the repo. They are useful as history, but they are not authoritative evidence of the current runtime state.
 
 ## Legacy Planning Files To Treat Carefully

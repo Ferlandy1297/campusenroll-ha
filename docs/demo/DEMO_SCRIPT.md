@@ -116,7 +116,7 @@ Mostrar:
 
 Guion sugerido:
 
-"El repo tambien trae activos de validacion final. En S21, Prometheus ya scrapea metricas reales de los cinco servicios cuando el modo HA readiness esta activo. Grafana sigue disponible, pero dashboards y alertas siguen pendientes."
+"El repo tambien trae activos de validacion final. En S21, Prometheus ya scrapea metricas reales de los cinco servicios cuando el modo HA readiness esta activo. S28 agrega reglas activas de Prometheus para disponibilidad, target faltante, error HTTP y p95 de latencia. Grafana sigue disponible, pero no estamos reclamando un paquete de dashboards o notificaciones de nivel productivo."
 
 Mostrar:
 
@@ -124,6 +124,8 @@ Mostrar:
 - resumen de una ejecucion k6
 - `curl.exe http://localhost:8081/actuator/prometheus`
 - `http://localhost:9090/targets`
+- `http://localhost:9090/alerts`
+- `http://localhost:9090/rules`
 - `http://localhost:3000`
 
 ## 8. Failover y switchover de aplicacion - 6:10 a 7:10
@@ -166,7 +168,7 @@ Mostrar:
 
 Cierre sugerido:
 
-"En conclusion, CampusEnroll HA ya es demostrable como plataforma local HA-ready: tiene empaquetado por servicio, restart policies, healthchecks, cache Redis, eventos RabbitMQ, metricas Prometheus reales, activos de validacion y una capa local de backup/restore para PostgreSQL. Lo que sigue pendiente es la alta disponibilidad productiva con replicas, balanceo, automatizacion de backups, almacenamiento off-site, cifrado, alertas, dashboards, clusters y failover."
+"En conclusion, CampusEnroll HA ya es demostrable como plataforma local HA-ready: tiene empaquetado por servicio, restart policies, healthchecks, cache Redis, eventos RabbitMQ, metricas Prometheus reales, reglas activas de alerting en Prometheus, activos de validacion y una capa local de backup/restore para PostgreSQL. Lo que sigue pendiente es la alta disponibilidad productiva con replicas, balanceo, automatizacion de backups, almacenamiento off-site, cifrado, Alertmanager, dashboards de negocio, clusters y failover de base de datos."
 
 Si preguntan por PostgreSQL failover, responder:
 

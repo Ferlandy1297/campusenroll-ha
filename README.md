@@ -171,6 +171,7 @@ Mensaje honesto:
 - `docker-compose.ha-demo.yml` con `course-service-replica` y HAProxy para continuidad del catalogo academico
 - endpoints `GET /actuator/health`, `GET /actuator/info` y `GET /actuator/prometheus` en los cinco servicios
 - Prometheus scrapeando metricas reales de los cinco microservicios en modo HA readiness
+- reglas activas de alerta Prometheus para caida de servicio, target faltante, error HTTP y p95 de latencia
 - Redis real en `course-service`
 - RabbitMQ real para publicacion y consumo de eventos de evidencia
 - failover y switchover a nivel de aplicacion para `course-service` usando health checks HTTP en HAProxy
@@ -180,6 +181,7 @@ Mensaje honesto:
 - runbook local de recuperacion ante desastres en `infra/backups/DISASTER_RECOVERY_RUNBOOK.md`
 - k6 como paquete de validacion final
 - Grafana accesible como infraestructura disponible
+- Alertmanager y notificaciones externas siguen fuera del alcance actual
 
 ## Que sigue siendo mejora futura
 
@@ -191,7 +193,7 @@ Mensaje honesto:
 - entrypoint unico para todos los microservicios detras del balanceador
 - Kubernetes o Docker Swarm
 - dashboards Grafana listos para plataforma y negocio
-- alertas Prometheus/Grafana
+- Alertmanager, enrutamiento de notificaciones y observabilidad operativa de produccion
 - backups programados
 - almacenamiento off-site
 - cifrado de backups
@@ -221,3 +223,4 @@ Mensaje honesto:
 - `docs/course-audit/README.md`
 - `docs/course-audit/`
 - `docs/course-audit/S27_EVIDENCE_SUMMARY.md`
+- `docs/course-audit/SLO_ALERTING_PROPOSAL.md`

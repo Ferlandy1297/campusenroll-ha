@@ -2,7 +2,7 @@
 
 ## What S27 adds
 
-S27 adds a documentation-only evidence hardening package on top of the S26 course alignment audit.
+S27 added a documentation-only evidence hardening package on top of the S26 course alignment audit.
 
 New documentation areas:
 
@@ -12,7 +12,18 @@ New documentation areas:
 - `SLO_ALERTING_PROPOSAL.md`
 - `HA_TERMINOLOGY_AND_LIMITS.md`
 
-## How S27 closes the S26 gaps
+## What S28 changes on top of S27
+
+S28 turns the observability section from proposal-only wording into a real Prometheus implementation.
+
+It adds:
+
+- `infra/prometheus/rules/campusenroll-alerts.yml`
+- `rule_files` loading in `infra/prometheus/prometheus.yml`
+- mounted rules in `docker-compose.yml`
+- live Prometheus rules for service-down, target-missing, HTTP 5xx rate, and p95 latency
+
+## How S27 closed the S26 gaps
 
 ### EXPLAIN, ANALYZE, and BUFFERS evidence
 
@@ -20,25 +31,11 @@ Closed by:
 
 - `docs/course-audit/EXPLAIN_AND_INDEX_EVIDENCE.md`
 
-What it adds:
-
-- PowerShell-ready `docker exec` and `psql` commands
-- representative CampusEnroll queries
-- plan interpretation guidance
-- index rationale tied to the real schema
-
 ### Index rationale
 
 Closed by:
 
 - `docs/course-audit/EXPLAIN_AND_INDEX_EVIDENCE.md`
-
-What it adds:
-
-- explanation of active-state indexes
-- join-path indexes
-- time-oriented indexes
-- partial unique business-rule indexes
 
 ### MVCC, ACID, isolation, and concurrency explanation
 
@@ -46,25 +43,11 @@ Closed by:
 
 - `docs/course-audit/TRANSACTIONS_CONCURRENCY_IDEMPOTENCY.md`
 
-What it adds:
-
-- clear ACID interpretation for this project
-- MVCC explanation tied to PostgreSQL
-- Spring `@Transactional` mapping
-- honest limits around isolation tuning and locking
-
 ### Anti-oversell and idempotency explanation
 
 Closed by:
 
 - `docs/course-audit/TRANSACTIONS_CONCURRENCY_IDEMPOTENCY.md`
-
-What it adds:
-
-- precise explanation of duplicate-active enrollment protection
-- precise explanation of duplicate-pending billing protection
-- clear statement that this is not yet full seat-inventory anti-oversell
-- clear statement that this is not yet full idempotency keys or outbox
 
 ### DCL and database security explanation
 
@@ -72,25 +55,16 @@ Closed by:
 
 - `docs/course-audit/DCL_SECURITY_NOTES.md`
 
-What it adds:
+### SLO and alerting
 
-- DCL definitions
-- least-privilege explanation
-- honest explanation of the current local credential model
-- illustrative role and grant examples for discussion
-
-### SLO and alerting proposal
-
-Closed by:
+Closed first by:
 
 - `docs/course-audit/SLO_ALERTING_PROPOSAL.md`
 
-What it adds:
+Then hardened in runtime by S28 through:
 
-- SLI, SLO, SLA, and alerting terminology
-- proposed academic objectives
-- example Prometheus alert rules
-- honest boundary between metrics and active alerting
+- `infra/prometheus/rules/campusenroll-alerts.yml`
+- `infra/prometheus/prometheus.yml`
 
 ### HA terminology and precise limits
 
@@ -98,16 +72,7 @@ Closed by:
 
 - `docs/course-audit/HA_TERMINOLOGY_AND_LIMITS.md`
 
-What it adds:
-
-- clean definitions
-- presentation-safe phrasing
-- trap-question answers
-- explicit distinction between application failover, database failover, backup, restore, RPO, and RTO
-
 ## What remains future production work
-
-S27 does not change the technical boundary established in S26.
 
 Still future work:
 
@@ -116,12 +81,13 @@ Still future work:
 - database switchover
 - read replicas
 - full seat-capacity reservation logic
-- explicit `SKIP LOCKED` or `FOR UPDATE` based workflows
+- explicit `SKIP LOCKED` or `FOR UPDATE` workflows
 - deadlock retry framework
 - idempotency keys
 - outbox pattern
 - full saga compensation
-- active Prometheus alert wiring
+- Alertmanager routing and external notifications
+- backup freshness metric export for alerting
 - finished Grafana dashboards
 - multi-node production cluster
 
@@ -135,28 +101,28 @@ Best high-value evidence set:
 - Redis cache evidence for `GET /api/courses`
 - RabbitMQ exchange, queue, and event logs
 - k6 concurrent enrollment script and result
-- Prometheus targets and one `/actuator/prometheus` endpoint
+- Prometheus targets plus the `/alerts` and `/rules` pages
 - backup and restore scripts plus the disaster recovery runbook
 - HAProxy failover or switchover demo
-- selected S27 docs when answering theory-heavy questions
+- selected S27 support docs for theory-heavy questions
 
 ## Concise checklist
 
 - [ ] Use `EXPLAIN_AND_INDEX_EVIDENCE.md` if query-plan questions come up.
 - [ ] Use `TRANSACTIONS_CONCURRENCY_IDEMPOTENCY.md` for MVCC, ACID, anti-oversell, and idempotency questions.
 - [ ] Use `DCL_SECURITY_NOTES.md` for least-privilege and DCL questions.
-- [ ] Use `SLO_ALERTING_PROPOSAL.md` for observability maturity and alerting questions.
+- [ ] Use `SLO_ALERTING_PROPOSAL.md` for observability maturity, active Prometheus rules, and current alerting limits.
 - [ ] Use `HA_TERMINOLOGY_AND_LIMITS.md` for failover, switchover, backup, restore, RPO, and RTO questions.
 - [ ] Keep the final narrative honest: implemented now versus future production work.
 
 ## Bottom line
 
-S27 does not try to make CampusEnroll HA look larger than it is.
+S27 made the project easier to defend.
 
-It makes the current implementation easier to defend by giving the team:
+S28 makes one of those defenses operational:
 
-- stronger Database II language
-- clearer evidence commands
-- better index and concurrency explanations
-- safer HA terminology
-- cleaner answers during the final presentation
+- real metrics
+- real scrape targets
+- real Prometheus alert rules
+- no Alertmanager claim
+- no production dashboard claim

@@ -79,7 +79,7 @@ pandoc docs/final/CHECKPOINT_1_PDF_READY.md -o docs/final/CHECKPOINT_1_PDF_READY
   - almacenamiento off-site
   - cifrado de backups
   - dashboards Grafana de negocio
-  - alertas Prometheus/Grafana
+  - Alertmanager, notificaciones externas y dashboards operativos completos
   - gateway operativo
   - frontend
 - insertar capturas legibles de:

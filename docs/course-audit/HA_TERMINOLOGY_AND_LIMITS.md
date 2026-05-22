@@ -135,7 +135,7 @@ Backup and recovery wording:
 
 Observability wording:
 
-`Prometheus metrics and scrape targets are implemented. Grafana is available as infrastructure. Dashboards and active alerting are still future hardening work.`
+`Prometheus metrics, scrape targets, and core alert rules are implemented. Grafana is available as infrastructure. Alertmanager routing and production-complete dashboards are still future hardening work.`
 
 ## Trap-question answers
 
