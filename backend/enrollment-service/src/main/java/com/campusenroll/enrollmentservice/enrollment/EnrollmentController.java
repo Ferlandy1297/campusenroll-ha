@@ -3,15 +3,18 @@ package com.campusenroll.enrollmentservice.enrollment;
 import com.campusenroll.enrollmentservice.enrollment.dto.CreateEnrollmentRequest;
 import com.campusenroll.enrollmentservice.enrollment.dto.EnrollmentResponse;
 import com.campusenroll.enrollmentservice.enrollment.dto.UpdateEnrollmentStatusRequest;
+import com.campusenroll.enrollmentservice.idempotency.IdempotentResponse;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -36,9 +39,18 @@ public class EnrollmentController {
     }
 
     @PostMapping
-    public ResponseEntity<EnrollmentResponse> create(@Valid @RequestBody CreateEnrollmentRequest request) {
-        EnrollmentResponse response = enrollmentService.create(request);
-        return ResponseEntity.created(URI.create("/api/enrollments/" + response.id())).body(response);
+    public ResponseEntity<EnrollmentResponse> create(
+            @Valid @RequestBody CreateEnrollmentRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        if (!StringUtils.hasText(idempotencyKey)) {
+            EnrollmentResponse response = enrollmentService.create(request);
+            return ResponseEntity.created(URI.create("/api/enrollments/" + response.id())).body(response);
+        }
+
+        IdempotentResponse<EnrollmentResponse> response = enrollmentService.create(request, idempotencyKey);
+        return ResponseEntity.status(response.status())
+                .location(URI.create("/api/enrollments/" + response.body().id()))
+                .body(response.body());
     }
 
     @PatchMapping("/{id}/status")

@@ -12,6 +12,7 @@ import com.campusenroll.billing.billing.dto.BillingResponse;
 import com.campusenroll.billing.error.ConflictException;
 import com.campusenroll.billing.error.GlobalExceptionHandler;
 import com.campusenroll.billing.error.ResourceNotFoundException;
+import com.campusenroll.billing.idempotency.IdempotentResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.math.BigDecimal;
@@ -65,6 +66,35 @@ class BillingControllerTest {
                 OffsetDateTime.parse("2026-05-05T10:15:30Z"));
 
         mockMvc.perform(post("/api/billings")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "enrollmentId": 100,
+                                  "amount": 150.75,
+                                  "currency": "USD",
+                                  "status": "PENDING"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "/api/billings/1"))
+                .andExpect(jsonPath("$.enrollmentId").value(100))
+                .andExpect(jsonPath("$.amount").value(150.75))
+                .andExpect(jsonPath("$.currency").value("USD"))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    void shouldCreateBillingWithIdempotencyKey() throws Exception {
+        billingService.createResponse = new BillingResponse(
+                1L,
+                100L,
+                new BigDecimal("150.75"),
+                "USD",
+                BillingStatus.PENDING,
+                OffsetDateTime.parse("2026-05-05T10:15:30Z"));
+
+        mockMvc.perform(post("/api/billings")
+                        .header("Idempotency-Key", "billing-idem-1")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -141,15 +171,36 @@ class BillingControllerTest {
                 .andExpect(jsonPath("$.message").value("An active billing already exists for this enrollment"));
     }
 
+    @Test
+    void shouldReturnConflictForBillingIdempotencyKeyReuseWithDifferentPayload() throws Exception {
+        billingService.idempotentCreateException =
+                new ConflictException("Idempotency key was reused with a different payload");
+
+        mockMvc.perform(post("/api/billings")
+                        .header("Idempotency-Key", "billing-idem-2")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "enrollmentId": 101,
+                                  "amount": 175.00,
+                                  "currency": "USD",
+                                  "status": "PENDING"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Idempotency key was reused with a different payload"));
+    }
+
     private static final class StubBillingService extends BillingService {
 
         private List<BillingResponse> getAllResponse = List.of();
         private BillingResponse createResponse;
         private RuntimeException createException;
+        private RuntimeException idempotentCreateException;
         private RuntimeException getByIdException;
 
         private StubBillingService() {
-            super(null, (billing, previousStatus, newStatus) -> {});
+            super(null, (billing, previousStatus, newStatus) -> {}, null);
         }
 
         @Override
@@ -171,6 +222,16 @@ class BillingControllerTest {
                 throw createException;
             }
             return createResponse;
+        }
+
+        @Override
+        public IdempotentResponse<BillingResponse> create(
+                com.campusenroll.billing.billing.dto.CreateBillingRequest request,
+                String idempotencyKey) {
+            if (idempotentCreateException != null) {
+                throw idempotentCreateException;
+            }
+            return IdempotentResponse.created(createResponse);
         }
     }
 }

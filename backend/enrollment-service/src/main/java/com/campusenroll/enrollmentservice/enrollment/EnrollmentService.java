@@ -6,6 +6,8 @@ import com.campusenroll.enrollmentservice.enrollment.dto.UpdateEnrollmentStatusR
 import com.campusenroll.enrollmentservice.messaging.EnrollmentEventPublisher;
 import com.campusenroll.enrollmentservice.error.ConflictException;
 import com.campusenroll.enrollmentservice.error.ResourceNotFoundException;
+import com.campusenroll.enrollmentservice.idempotency.IdempotentResponse;
+import com.campusenroll.enrollmentservice.idempotency.IdempotencyService;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -17,15 +19,20 @@ public class EnrollmentService {
 
     private static final String DUPLICATE_ACTIVE_ENROLLMENT_MESSAGE =
             "An active enrollment already exists for this student and section";
+    private static final String SERVICE_NAME = "enrollment-service";
+    private static final String CREATE_OPERATION = "create-enrollment";
 
     private final EnrollmentRepository enrollmentRepository;
     private final EnrollmentEventPublisher enrollmentEventPublisher;
+    private final IdempotencyService idempotencyService;
 
     public EnrollmentService(
             EnrollmentRepository enrollmentRepository,
-            EnrollmentEventPublisher enrollmentEventPublisher) {
+            EnrollmentEventPublisher enrollmentEventPublisher,
+            IdempotencyService idempotencyService) {
         this.enrollmentRepository = enrollmentRepository;
         this.enrollmentEventPublisher = enrollmentEventPublisher;
+        this.idempotencyService = idempotencyService;
     }
 
     @Transactional(readOnly = true)
@@ -42,6 +49,21 @@ public class EnrollmentService {
 
     @Transactional
     public EnrollmentResponse create(CreateEnrollmentRequest request) {
+        return createEnrollment(request);
+    }
+
+    @Transactional
+    public IdempotentResponse<EnrollmentResponse> create(CreateEnrollmentRequest request, String idempotencyKey) {
+        return idempotencyService.execute(
+                SERVICE_NAME,
+                CREATE_OPERATION,
+                idempotencyKey,
+                request,
+                EnrollmentResponse.class,
+                () -> IdempotentResponse.created(createEnrollment(request)));
+    }
+
+    private EnrollmentResponse createEnrollment(CreateEnrollmentRequest request) {
         if (enrollmentRepository.existsByStudentIdAndSectionIdAndStatus(
                 request.getStudentId(), request.getSectionId(), EnrollmentStatus.ENROLLED)) {
             throw new ConflictException(DUPLICATE_ACTIVE_ENROLLMENT_MESSAGE);

@@ -8,12 +8,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.campusenroll.enrollmentservice.enrollment.dto.EnrollmentResponse;
 import com.campusenroll.enrollmentservice.error.ConflictException;
 import com.campusenroll.enrollmentservice.error.GlobalExceptionHandler;
 import com.campusenroll.enrollmentservice.error.ResourceNotFoundException;
+import com.campusenroll.enrollmentservice.idempotency.IdempotentResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +55,27 @@ class EnrollmentControllerTest {
                 new EnrollmentResponse(1L, 100L, 200L, EnrollmentStatus.ENROLLED, OffsetDateTime.parse("2026-05-05T10:15:30Z"));
 
         mockMvc.perform(post("/api/enrollments")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "studentId": 100,
+                                  "sectionId": 200
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "/api/enrollments/1"))
+                .andExpect(jsonPath("$.studentId").value(100))
+                .andExpect(jsonPath("$.sectionId").value(200))
+                .andExpect(jsonPath("$.status").value("ENROLLED"));
+    }
+
+    @Test
+    void shouldCreateEnrollmentWithIdempotencyKey() throws Exception {
+        enrollmentService.createResponse =
+                new EnrollmentResponse(1L, 100L, 200L, EnrollmentStatus.ENROLLED, OffsetDateTime.parse("2026-05-05T10:15:30Z"));
+
+        mockMvc.perform(post("/api/enrollments")
+                        .header("Idempotency-Key", "enrollment-idem-1")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -121,15 +143,34 @@ class EnrollmentControllerTest {
                 .andExpect(jsonPath("$.message").value("An active enrollment already exists for this student and section"));
     }
 
+    @Test
+    void shouldReturnConflictForIdempotencyKeyReuseWithDifferentPayload() throws Exception {
+        enrollmentService.idempotentCreateException =
+                new ConflictException("Idempotency key was reused with a different payload");
+
+        mockMvc.perform(post("/api/enrollments")
+                        .header("Idempotency-Key", "enrollment-idem-2")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "studentId": 100,
+                                  "sectionId": 201
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Idempotency key was reused with a different payload"));
+    }
+
     private static final class StubEnrollmentService extends EnrollmentService {
 
         private List<EnrollmentResponse> getAllResponse = List.of();
         private EnrollmentResponse createResponse;
         private RuntimeException createException;
+        private RuntimeException idempotentCreateException;
         private RuntimeException getByIdException;
 
         private StubEnrollmentService() {
-            super(null, enrollment -> {});
+            super(null, enrollment -> {}, null);
         }
 
         @Override
@@ -151,6 +192,16 @@ class EnrollmentControllerTest {
                 throw createException;
             }
             return createResponse;
+        }
+
+        @Override
+        public IdempotentResponse<EnrollmentResponse> create(
+                com.campusenroll.enrollmentservice.enrollment.dto.CreateEnrollmentRequest request,
+                String idempotencyKey) {
+            if (idempotentCreateException != null) {
+                throw idempotentCreateException;
+            }
+            return IdempotentResponse.created(createResponse);
         }
     }
 }

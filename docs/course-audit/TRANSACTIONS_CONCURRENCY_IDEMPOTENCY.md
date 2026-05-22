@@ -147,7 +147,29 @@ The current schema uses business-focused partial uniqueness:
 
 These are strong Database II aligned artifacts because they enforce rules directly at the relational layer.
 
-### 5. k6 concurrent enrollment evidence
+### 5. HTTP `Idempotency-Key` for selected critical writes
+
+S29 adds real API-level idempotency for these write endpoints:
+
+- `POST /api/enrollments`
+- `POST /api/billings`
+
+Implemented behavior:
+
+- if `Idempotency-Key` is absent, existing behavior is preserved
+- if the same key is reused with the same payload after a successful first request, the service replays the stored HTTP status and JSON response body
+- if the same key is reused with a different payload, the service returns `409 Conflict`
+- the replayed response is backed by a PostgreSQL table named `idempotency_records`
+- the uniqueness guard is `(service_name, operation_name, idempotency_key)`
+
+Why it matters:
+
+- client retries do not create duplicate enrollment rows
+- client retries do not create duplicate billing rows
+- replayed enrollment requests do not republish `EnrollmentCreatedEvent`
+- the solution stays aligned with Database II because the concurrency guard is still enforced by PostgreSQL
+
+### 6. k6 concurrent enrollment evidence
 
 The repo includes a focused concurrency test:
 
@@ -167,7 +189,7 @@ The current repo does not implement:
 - explicit `SKIP LOCKED`
 - explicit `FOR UPDATE` locking
 - a deadlock retry framework
-- request-level idempotency keys
+- full idempotency coverage for every write endpoint
 - the outbox pattern
 - full saga compensation
 - seat inventory reservation logic
@@ -200,21 +222,23 @@ So the correct phrase is:
 
 Current idempotency-related strengths:
 
-- duplicate-active enrollment protection limits replay damage on the same student-section pair
-- duplicate-pending billing protection limits replay damage on the same enrollment
-- enrollment event publication happens only after `saveAndFlush(...)`
-- billing status change events are only published when the status actually changes
+- `Idempotency-Key` is implemented for `POST /api/enrollments`
+- `Idempotency-Key` is implemented for `POST /api/billings`
+- repeated successful same-key requests replay the stored response instead of duplicating the business operation
+- duplicate-active enrollment protection still exists as a relational fallback
+- duplicate-pending billing protection still exists as a relational fallback
+- `idempotency_records` stores the request hash, response status, response body, and completion state
 
 Current idempotency limitations:
 
-- no request id or idempotency key header
-- no deduplication table
-- no durable outbox
-- no guaranteed replay-safe multi-service delivery pipeline
+- not every write endpoint in the platform uses idempotency keys yet
+- the transactional outbox planned for S30 is still not implemented
+- the full saga compensation planned for S31 is still not implemented
+- the RabbitMQ flow is not yet a fully durable replay-safe distributed pipeline
 
 So the correct phrase is:
 
-`CampusEnroll HA includes partial idempotency protection through relational uniqueness and careful event ordering, but it does not implement full API idempotency keys or an outbox pattern.`
+`CampusEnroll HA now implements real API idempotency keys for selected critical write endpoints, but it still does not implement the transactional outbox planned for S30 or the full saga compensation planned for S31.`
 
 ## Relationship to RabbitMQ choreography
 
@@ -245,6 +269,13 @@ Inspect the table and index shape directly:
 ```powershell
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d enrollments"
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d billings"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d idempotency_records"
+```
+
+Inspect the stored idempotency records:
+
+```powershell
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, service_name, operation_name, idempotency_key, status, response_status, created_at, completed_at FROM idempotency_records ORDER BY id;"
 ```
 
 Run the concurrent enrollment evidence scenario:
@@ -264,11 +295,63 @@ Expected interpretation:
 - success means no duplicate `201` responses for the same pair
 - repeated `409` responses are acceptable and expected after the first success
 
+Run the S29 enrollment idempotency scenario:
+
+```powershell
+$headers = @{
+  "Content-Type" = "application/json"
+  "Idempotency-Key" = "enrollment-idem-demo-1"
+}
+$body = '{"studentId":1,"sectionId":2}'
+$first = Invoke-WebRequest -Method Post -Uri "http://localhost:8083/api/enrollments" -Headers $headers -Body $body
+$second = Invoke-WebRequest -Method Post -Uri "http://localhost:8083/api/enrollments" -Headers $headers -Body $body
+$first.StatusCode
+$second.StatusCode
+$first.Content
+$second.Content
+$differentEnrollmentBody = (@{
+  studentId = 1
+  sectionId = 3
+} | ConvertTo-Json -Compress)
+curl.exe -i -X POST http://localhost:8083/api/enrollments -H "Content-Type: application/json" -H "Idempotency-Key: enrollment-idem-demo-1" -d $differentEnrollmentBody
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, student_id, section_id, status FROM enrollments WHERE student_id = 1 AND section_id = 2 ORDER BY id;"
+```
+
+Run the S29 billing idempotency scenario after the enrollment response above:
+
+```powershell
+$enrollment = $first.Content | ConvertFrom-Json
+$billingHeaders = @{
+  "Content-Type" = "application/json"
+  "Idempotency-Key" = "billing-idem-demo-1"
+}
+$billingBody = (@{
+  enrollmentId = $enrollment.id
+  amount = 150.75
+  currency = "USD"
+  status = "PENDING"
+} | ConvertTo-Json -Compress)
+$billingFirst = Invoke-WebRequest -Method Post -Uri "http://localhost:8084/api/billings" -Headers $billingHeaders -Body $billingBody
+$billingSecond = Invoke-WebRequest -Method Post -Uri "http://localhost:8084/api/billings" -Headers $billingHeaders -Body $billingBody
+$billingFirst.StatusCode
+$billingSecond.StatusCode
+$billingFirst.Content
+$billingSecond.Content
+$differentBillingBody = (@{
+  enrollmentId = $enrollment.id
+  amount = 175.00
+  currency = "USD"
+  status = "PENDING"
+} | ConvertTo-Json -Compress)
+curl.exe -i -X POST http://localhost:8084/api/billings -H "Content-Type: application/json" -H "Idempotency-Key: billing-idem-demo-1" -d $differentBillingBody
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, enrollment_id, amount, currency, status FROM billings WHERE enrollment_id = $($enrollment.id) ORDER BY id;"
+```
+
 ## Presentation-safe wording
 
 Use wording like this:
 
-`CampusEnroll HA already uses real PostgreSQL transactions and relational constraints to protect critical operations. For enrollments, the service checks for an existing active row, flushes the insert, and still relies on a PostgreSQL partial unique index as the final concurrency guard. That is strong duplicate-active protection, but it is not yet a full seat-capacity anti-oversell system and it does not yet use explicit SKIP LOCKED, FOR UPDATE, or idempotency keys.`
+`CampusEnroll HA already uses real PostgreSQL transactions and relational constraints to protect critical operations. In S29 it also adds real Idempotency-Key support for POST /api/enrollments and POST /api/billings, backed by a PostgreSQL idempotency_records table. That is stronger than duplicate-only protection, but it is still not a full seat-capacity anti-oversell system, a transactional outbox, or full saga compensation.`
 
 ## Bottom line
 
@@ -277,6 +360,7 @@ CampusEnroll HA is already defensible in Database II terms because it combines:
 - Spring transactions
 - PostgreSQL MVCC and constraint enforcement
 - concurrency-aware duplicate protection
+- selected API idempotency keys backed by PostgreSQL
 - a dedicated k6 concurrency asset
 
 The missing pieces are advanced production refinements, not proof that the current system lacks transactional discipline.

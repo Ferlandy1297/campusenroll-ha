@@ -81,10 +81,10 @@ Several course topics are present only as explanation, planning, or future recom
 - explicit CampusEnroll demonstrations of MVCC and isolation-level behavior
 - explicit locking patterns such as `FOR UPDATE` or `SKIP LOCKED`
 - full saga compensation logic
-- idempotency keys and durable outbox style delivery
+- durable outbox style delivery
 - DCL role/grant scripts
 - EXPLAIN, BUFFERS, and CPU-vs-I/O evidence packages for current queries
-- SLO definitions and active Prometheus alert rules
+- full SLO governance, Alertmanager routing, and production-grade dashboarding
 - PostgreSQL replication, read replicas, and database failover
 
 ## What Should Stay Future Production Work
@@ -95,6 +95,7 @@ The following topics belong in a future production roadmap, not in a last-minute
 - multi-node deployment beyond the local demo shape
 - broad partitioning or anti-hotspot redesign
 - full cross-service saga compensation and outbox infrastructure
+- idempotency coverage for every write endpoint
 - production-grade dashboards, alerts, escalation paths, and on-call workflow
 - HA coverage for every service behind a unified gateway
 

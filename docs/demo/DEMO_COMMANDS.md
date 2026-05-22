@@ -1,4 +1,14 @@
-# Demo Commands - PowerShell - S25
+# Demo Commands - PowerShell - S29
+
+## 0. Compilar y probar los servicios afectados por S29
+
+```powershell
+Set-Location .\backend\enrollment-service
+mvn test
+Set-Location ..\billing-service
+mvn test
+Set-Location ..\..
+```
 
 ## 1. Confirmar variables locales
 
@@ -38,6 +48,7 @@ docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT i
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, section_code, academic_period_id, course_id, capacity, active FROM sections ORDER BY id;"
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, student_id, section_id, status FROM enrollments ORDER BY id;"
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, enrollment_id, amount, currency, status FROM billings ORDER BY id;"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d idempotency_records"
 ```
 
 ## 4. Verificar base y crear backup S22
@@ -239,6 +250,76 @@ Invoke-RestMethod -Method Patch -Uri "http://localhost:8084/api/billings/$($bill
 } | ConvertTo-Json -Compress)
 ```
 
+### Validar `Idempotency-Key` en enrollments
+
+Usar un par libre despues de recargar `db/schema.sql` y `db/data.sql`. El dataset actual deja libre `studentId=1`, `sectionId=2`.
+
+```powershell
+$enrollmentHeaders = @{
+  "Content-Type" = "application/json"
+  "Idempotency-Key" = "enrollment-idem-demo-1"
+}
+$enrollmentBody = '{"studentId":1,"sectionId":2}'
+$firstEnrollment = Invoke-WebRequest -Method Post -Uri 'http://localhost:8083/api/enrollments' -Headers $enrollmentHeaders -Body $enrollmentBody
+$secondEnrollment = Invoke-WebRequest -Method Post -Uri 'http://localhost:8083/api/enrollments' -Headers $enrollmentHeaders -Body $enrollmentBody
+$firstEnrollment.StatusCode
+$secondEnrollment.StatusCode
+$firstEnrollment.Content
+$secondEnrollment.Content
+$differentEnrollmentBody = (@{
+  studentId = 1
+  sectionId = 3
+} | ConvertTo-Json -Compress)
+curl.exe -i -X POST http://localhost:8083/api/enrollments -H "Content-Type: application/json" -H "Idempotency-Key: enrollment-idem-demo-1" -d $differentEnrollmentBody
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, student_id, section_id, status FROM enrollments WHERE student_id = 1 AND section_id = 2 ORDER BY id;"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT service_name, operation_name, idempotency_key, status, response_status FROM idempotency_records WHERE service_name = 'enrollment-service' ORDER BY id;"
+```
+
+Resultado esperado:
+
+- primer POST: `201 Created`
+- segundo POST con mismo header y mismo body: `201 Created` con el mismo JSON
+- mismo key con body distinto: `409 Conflict`
+- una sola fila nueva en `enrollments` para `student_id=1` y `section_id=2`
+
+### Validar `Idempotency-Key` en billings
+
+```powershell
+$enrollmentReplay = $firstEnrollment.Content | ConvertFrom-Json
+$billingHeaders = @{
+  "Content-Type" = "application/json"
+  "Idempotency-Key" = "billing-idem-demo-1"
+}
+$billingBody = (@{
+  enrollmentId = $enrollmentReplay.id
+  amount = 150.75
+  currency = 'USD'
+  status = 'PENDING'
+} | ConvertTo-Json -Compress)
+$firstBilling = Invoke-WebRequest -Method Post -Uri 'http://localhost:8084/api/billings' -Headers $billingHeaders -Body $billingBody
+$secondBilling = Invoke-WebRequest -Method Post -Uri 'http://localhost:8084/api/billings' -Headers $billingHeaders -Body $billingBody
+$firstBilling.StatusCode
+$secondBilling.StatusCode
+$firstBilling.Content
+$secondBilling.Content
+$differentBillingBody = (@{
+  enrollmentId = $enrollmentReplay.id
+  amount = 175.00
+  currency = 'USD'
+  status = 'PENDING'
+} | ConvertTo-Json -Compress)
+curl.exe -i -X POST http://localhost:8084/api/billings -H "Content-Type: application/json" -H "Idempotency-Key: billing-idem-demo-1" -d $differentBillingBody
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, enrollment_id, amount, currency, status FROM billings WHERE enrollment_id = $($enrollmentReplay.id) ORDER BY id;"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT service_name, operation_name, idempotency_key, status, response_status FROM idempotency_records WHERE service_name = 'billing-service' ORDER BY id;"
+```
+
+Resultado esperado:
+
+- primer POST: `201 Created`
+- segundo POST con mismo header y mismo body: `201 Created` con el mismo JSON
+- mismo key con body distinto: `409 Conflict`
+- una sola fila nueva en `billings` para el `enrollmentId` usado
+
 ## 12. Verificar Redis cache
 
 ```powershell
@@ -385,10 +466,13 @@ Mensaje honesto:
 
 - S21 agrego metricas reales de microservicios mediante Actuator y Micrometer Prometheus
 - S28 agrega reglas activas de Prometheus para disponibilidad, target faltante, 5xx y p95 de latencia
+- S29 agrega `Idempotency-Key` real para `POST /api/enrollments` y `POST /api/billings`
 - el workflow Maven local sigue intacto, pero los targets por nombre de servicio Docker solo apareceran `UP` en la UI de Prometheus cuando `docker-compose.apps.yml` este activo
 - si Prometheus ya venia ejecutandose desde una corrida anterior, puede requerir un `restart prometheus` para recargar la nueva configuracion montada
 - Alertmanager y notificaciones externas siguen fuera del alcance actual
 - Grafana sigue disponible, pero dashboards de negocio, replicas y clustering siguen como mejora futura
+- el outbox transaccional sigue pendiente para S30
+- la compensacion completa de sagas sigue pendiente para S31
 
 ## 16. Observacion de falla controlada de infraestructura
 
