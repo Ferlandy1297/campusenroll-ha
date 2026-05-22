@@ -17,7 +17,7 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 ## 2. Resumen ejecutivo
 
-CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completo ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness. S22 agrega una capa practica de backup, restore y recuperacion ante desastres para PostgreSQL. S28 activa reglas reales de Prometheus y S29 agrega `Idempotency-Key` para escrituras criticas seleccionadas.
+CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completo ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness. S22 agrega una capa practica de backup, restore y recuperacion ante desastres para PostgreSQL. S28 activa reglas reales de Prometheus, S29 agrega `Idempotency-Key` para escrituras criticas seleccionadas y S30 agrega outbox transaccional para los servicios productores de eventos.
 
 Mensaje central:
 
@@ -33,9 +33,10 @@ Mensaje central:
 - Los cinco servicios exponen `GET /actuator/health`, `GET /actuator/info` y `GET /actuator/prometheus`.
 - Prometheus scrapea `prometheus`, `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` en modo HA readiness.
 - `course-service` usa Redis como cache real.
-- `enrollment-service` y `billing-service` publican eventos RabbitMQ.
+- `enrollment-service` y `billing-service` escriben eventos en `outbox_events` y luego los publican a RabbitMQ.
 - `POST /api/enrollments` y `POST /api/billings` aceptan `Idempotency-Key` y pueden reemitir la misma respuesta sin duplicar la operacion.
 - `notification` consume esos eventos y deja evidencia en logs.
+- `db/schema.sql` ahora incluye `outbox_events` para persistir el evento antes de la publicacion asincrona.
 - `infra/backups/backup-postgres.ps1` crea dumps locales de PostgreSQL.
 - `infra/backups/restore-postgres.ps1` restaura un dump seleccionado con advertencia visible.
 - `infra/backups/verify-database.ps1` valida base, usuario y conteos clave.
@@ -55,7 +56,6 @@ Mensaje central:
 - cluster Redis
 - cluster RabbitMQ
 - replicacion y failover de PostgreSQL
-- outbox transaccional
 - compensacion completa de sagas
 - backups programados
 - almacenamiento off-site
@@ -99,8 +99,8 @@ Tabla de componentes:
 | --- | --- | --- |
 | `student-service` | Implementado | CRUD basico y modo contenedor disponible |
 | `course-service` | Implementado | Catalogo academico, cache Redis y modo contenedor |
-| `enrollment-service` | Implementado | Inscripciones, eventos RabbitMQ y modo contenedor |
-| `billing-service` | Implementado | Cobros, eventos RabbitMQ y modo contenedor |
+| `enrollment-service` | Implementado | Inscripciones, outbox transaccional, eventos RabbitMQ y modo contenedor |
+| `billing-service` | Implementado | Cobros, outbox transaccional, eventos RabbitMQ y modo contenedor |
 | `notification` | Implementado para evidencia | Consumidor RabbitMQ y modo contenedor |
 | `gateway-service` | Preparado, no operativo | No participa en la demo actual |
 | PostgreSQL | Implementado | Persistencia principal y healthcheck |
@@ -336,7 +336,7 @@ Lo que debe observarse:
 
 ## 13. RabbitMQ y notification
 
-RabbitMQ ya participa en el flujo de evidencia del repositorio.
+RabbitMQ ya participa en el flujo de evidencia del repositorio y ahora queda endurecido por el outbox transaccional de los servicios productores.
 
 UI:
 
@@ -361,6 +361,8 @@ Logs esperados:
 - en `notification`:
   - `Enrollment created event received ...`
   - `Billing status changed event received ...`
+
+Adicionalmente, la base debe mostrar filas en `outbox_events` con `service_name`, `event_type`, `routing_key`, `status`, `attempts`, `created_at` y `published_at`.
 
 [Insertar evidencia E13 - RabbitMQ bindings]
 [Insertar evidencia E14 - logs de publicacion y consumo]
@@ -517,7 +519,7 @@ Los siguientes puntos deben quedar expresados como pendientes, no como trabajo y
 
 ## 18. Conclusiones
 
-CampusEnroll HA ya puede presentarse como una solucion local `HA-ready` para la entrega: tiene infraestructura compartida endurecida, servicios de aplicacion contenedorizables, restart policies, healthchecks, cache Redis, eventos RabbitMQ, evidencia con Postman, validacion con k6, metricas Prometheus reales en los cinco microservicios y una capa local de backup/restore para PostgreSQL.
+CampusEnroll HA ya puede presentarse como una solucion local `HA-ready` para la entrega: tiene infraestructura compartida endurecida, servicios de aplicacion contenedorizables, restart policies, healthchecks, cache Redis, outbox transaccional y eventos RabbitMQ, evidencia con Postman, validacion con k6, metricas Prometheus reales en los cinco microservicios y una capa local de backup/restore para PostgreSQL.
 
 La conclusion correcta no es "ya existe alta disponibilidad real". La conclusion correcta es:
 

@@ -1,9 +1,5 @@
 package com.campusenroll.billing.messaging;
 
-import com.campusenroll.billing.billing.Billing;
-import com.campusenroll.billing.billing.BillingStatus;
-import java.time.OffsetDateTime;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.AmqpException;
@@ -30,15 +26,7 @@ public class RabbitBillingEventPublisher implements BillingEventPublisher {
     }
 
     @Override
-    public void publishBillingStatusChanged(Billing billing, BillingStatus previousStatus, BillingStatus newStatus) {
-        BillingStatusChangedEvent event = new BillingStatusChangedEvent(
-                UUID.randomUUID(),
-                billing.getId(),
-                billing.getEnrollmentId(),
-                previousStatus.name(),
-                newStatus.name(),
-                OffsetDateTime.now());
-
+    public void publishBillingStatusChanged(BillingStatusChangedEvent event) {
         try {
             amqpTemplate.convertAndSend(exchange, billingStatusChangedRoutingKey, event);
             log.info(
@@ -49,9 +37,10 @@ public class RabbitBillingEventPublisher implements BillingEventPublisher {
         } catch (AmqpException ex) {
             log.warn(
                     "Failed to publish BillingStatusChangedEvent billingId={} routingKey={}: {}",
-                    billing.getId(),
+                    event.billingId(),
                     billingStatusChangedRoutingKey,
                     ex.getMessage());
+            throw ex;
         }
     }
 }

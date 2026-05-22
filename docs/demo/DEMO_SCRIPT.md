@@ -1,4 +1,4 @@
-# Demo Script - Entrega Final S29
+# Demo Script - Entrega Final S30
 
 ## Objetivo
 
@@ -6,7 +6,7 @@ Exponer en 7 a 9 minutos el estado real de CampusEnroll HA despues de S25, sin s
 
 Mensaje central:
 
-`CampusEnroll HA ya tiene flujo funcional, cache Redis, eventos RabbitMQ, healthchecks, modo Compose HA-ready, metricas Prometheus reales por microservicio, backup/restore local de PostgreSQL, alertas activas en Prometheus y ahora Idempotency-Key real para escrituras criticas; eso no equivale todavia a alta disponibilidad productiva, al outbox transaccional planeado para S30, a la compensacion completa de sagas planeada para S31 ni a failover de base de datos.`
+`CampusEnroll HA ya tiene flujo funcional, cache Redis, eventos RabbitMQ, healthchecks, modo Compose HA-ready, metricas Prometheus reales por microservicio, backup/restore local de PostgreSQL, alertas activas en Prometheus, Idempotency-Key real para escrituras criticas y ahora outbox transaccional para los productores de eventos; eso no equivale todavia a alta disponibilidad productiva, a la compensacion completa de sagas planeada para S31 ni a failover de base de datos.`
 
 ## 0. Preparacion previa
 
@@ -27,7 +27,7 @@ Antes de iniciar la demo:
 
 Guion sugerido:
 
-"Este es CampusEnroll HA. La base actual ya permite demostrar estudiantes, catalogo, inscripciones y cobros. S20 agrego el modo Compose para levantar tambien los cinco microservicios Spring Boot con restart policy y healthchecks. S21 completo esa base con metricas Prometheus reales en los cinco servicios. S22 agrega backup, restore y un runbook de recuperacion para PostgreSQL. S25 suma failover y switchover a nivel de aplicacion para course-service usando HAProxy y una replica. S28 activa reglas reales de Prometheus y S29 agrega Idempotency-Key para escrituras criticas."
+"Este es CampusEnroll HA. La base actual ya permite demostrar estudiantes, catalogo, inscripciones y cobros. S20 agrego el modo Compose para levantar tambien los cinco microservicios Spring Boot con restart policy y healthchecks. S21 completo esa base con metricas Prometheus reales en los cinco servicios. S22 agrega backup, restore y un runbook de recuperacion para PostgreSQL. S25 suma failover y switchover a nivel de aplicacion para course-service usando HAProxy y una replica. S28 activa reglas reales de Prometheus, S29 agrega Idempotency-Key para escrituras criticas y S30 agrega outbox transaccional para los servicios que producen eventos."
 
 Mostrar:
 
@@ -96,29 +96,32 @@ Puntos a resaltar:
 - `POST /api/enrollments` crea la inscripcion
 - repetir la misma inscripcion debe devolver `409 Conflict`
 - repetir el mismo `POST /api/enrollments` con el mismo `Idempotency-Key` y el mismo body debe devolver el mismo `201` sin duplicar filas ni eventos
+- esa misma inscripcion tambien debe crear una fila `outbox_events` para `EnrollmentCreatedEvent`
 - `POST /api/billings` crea el cobro pendiente
 - repetir el mismo cobro pendiente debe devolver `409 Conflict`
 - repetir el mismo `POST /api/billings` con el mismo `Idempotency-Key` y el mismo body debe devolver el mismo `201` sin duplicar filas
 - `PATCH /api/billings/{id}/status` a `PAID` dispara el evento de cambio de estado
+- ese cambio de estado tambien debe crear una fila `outbox_events` para `BillingStatusChangedEvent`
 
 ## 6. Redis y RabbitMQ en vivo - 4:20 a 5:20
 
 Guion sugerido:
 
-"Redis y RabbitMQ ya no son teoria. `course-service` usa cache Redis. `enrollment-service` y `billing-service` publican eventos RabbitMQ, y `notification` los consume."
+"Redis y RabbitMQ ya no son teoria. `course-service` usa cache Redis. `enrollment-service` y `billing-service` primero escriben sus eventos al outbox transaccional en PostgreSQL y luego los publican a RabbitMQ. `notification` sigue consumiendo esos eventos."
 
 Mostrar:
 
 - `docker exec -i campusenroll-redis redis-cli ping`
 - `docker exec -i campusenroll-redis redis-cli --scan --pattern "courses::*"`
 - `http://localhost:15672`
+- una consulta a `outbox_events`
 - logs de `notification`
 
 ## 7. k6, Prometheus y Grafana - 5:20 a 6:10
 
 Guion sugerido:
 
-"El repo tambien trae activos de validacion final. En S21, Prometheus ya scrapea metricas reales de los cinco servicios cuando el modo HA readiness esta activo. S28 agrega reglas activas de Prometheus para disponibilidad, target faltante, error HTTP y p95 de latencia. S29 agrega idempotencia real para retries HTTP en enrollments y billings. Grafana sigue disponible, pero no estamos reclamando un paquete de dashboards o notificaciones de nivel productivo."
+"El repo tambien trae activos de validacion final. En S21, Prometheus ya scrapea metricas reales de los cinco servicios cuando el modo HA readiness esta activo. S28 agrega reglas activas de Prometheus para disponibilidad, target faltante, error HTTP y p95 de latencia. S29 agrega idempotencia real para retries HTTP en enrollments y billings. S30 agrega outbox transaccional para que la escritura de negocio y la creacion del evento queden persistidas atomicamente antes de RabbitMQ. Grafana sigue disponible, pero no estamos reclamando un paquete de dashboards o notificaciones de nivel productivo."
 
 Mostrar:
 
@@ -170,7 +173,7 @@ Mostrar:
 
 Cierre sugerido:
 
-"En conclusion, CampusEnroll HA ya es demostrable como plataforma local HA-ready: tiene empaquetado por servicio, restart policies, healthchecks, cache Redis, eventos RabbitMQ, metricas Prometheus reales, reglas activas de alerting en Prometheus, idempotencia HTTP real para escrituras criticas, activos de validacion y una capa local de backup/restore para PostgreSQL. Lo que sigue pendiente es la alta disponibilidad productiva con replicas, balanceo, outbox transaccional, compensacion completa de sagas, automatizacion de backups, almacenamiento off-site, cifrado, Alertmanager, dashboards de negocio, clusters y failover de base de datos."
+"En conclusion, CampusEnroll HA ya es demostrable como plataforma local HA-ready: tiene empaquetado por servicio, restart policies, healthchecks, cache Redis, eventos RabbitMQ, outbox transaccional para los productores, metricas Prometheus reales, reglas activas de alerting en Prometheus, idempotencia HTTP real para escrituras criticas, activos de validacion y una capa local de backup/restore para PostgreSQL. Lo que sigue pendiente es la alta disponibilidad productiva con replicas, balanceo, compensacion completa de sagas, automatizacion de backups, almacenamiento off-site, cifrado, Alertmanager, dashboards de negocio, clusters y failover de base de datos."
 
 Si preguntan por PostgreSQL failover, responder:
 

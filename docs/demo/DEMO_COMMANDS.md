@@ -1,13 +1,10 @@
-# Demo Commands - PowerShell - S29
+# Demo Commands - PowerShell - S30
 
-## 0. Compilar y probar los servicios afectados por S29
+## 0. Compilar y probar los servicios afectados por S30
 
 ```powershell
-Set-Location .\backend\enrollment-service
-mvn test
-Set-Location ..\billing-service
-mvn test
-Set-Location ..\..
+mvn -f backend/enrollment-service/pom.xml test
+mvn -f backend/billing-service/pom.xml test
 ```
 
 ## 1. Confirmar variables locales
@@ -25,8 +22,8 @@ Notas:
 ## 2. HA readiness mode: levantar stack completo
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.apps.yml up -d --build
-docker compose -f docker-compose.yml -f docker-compose.apps.yml ps
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml ps
 ```
 
 Este es el comando recomendado para la defensa del estado actual.
@@ -49,6 +46,7 @@ docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT i
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, student_id, section_id, status FROM enrollments ORDER BY id;"
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, enrollment_id, amount, currency, status FROM billings ORDER BY id;"
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d idempotency_records"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d outbox_events"
 ```
 
 ## 4. Verificar base y crear backup S22
@@ -125,8 +123,8 @@ mvn spring-boot:run
 ### 6B. HA readiness mode con contenedores
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.apps.yml up -d --build
-docker compose -f docker-compose.yml -f docker-compose.apps.yml ps
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml ps
 ```
 
 Este modo agrega:
@@ -335,7 +333,25 @@ Evidencia esperada:
 - respuestas correctas de `GET /api/courses`
 - al menos una llave `courses::*`
 
-## 13. Verificar RabbitMQ y logs de eventos
+## 13. Verificar outbox transaccional S30
+
+Despues de crear la inscripcion y cambiar el estado del cobro a `PAID`, inspeccionar el outbox:
+
+```powershell
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, service_name, event_type, routing_key, status, attempts, created_at, published_at FROM outbox_events ORDER BY id DESC LIMIT 20;"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, service_name, aggregate_type, aggregate_id, event_type, status, attempts, last_error FROM outbox_events WHERE aggregate_type = 'enrollment' AND aggregate_id = $($enrollment.id) ORDER BY id DESC;"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, service_name, aggregate_type, aggregate_id, event_type, status, attempts, last_error FROM outbox_events WHERE aggregate_type = 'billing' AND aggregate_id = $($billing.id) ORDER BY id DESC;"
+```
+
+Resultado esperado:
+
+- una fila de `enrollment-service` para `EnrollmentCreatedEvent`
+- una fila de `billing-service` para `BillingStatusChangedEvent`
+- estado normalmente `PUBLISHED` pocos segundos despues de la escritura
+- `published_at` no nulo cuando RabbitMQ ya recibio el evento
+- `attempts=0` en un escenario sano
+
+## 14. Verificar RabbitMQ y logs de eventos
 
 Abrir la UI:
 
@@ -366,7 +382,7 @@ Log lines que deben observarse:
   - `Enrollment created event received ...`
   - `Billing status changed event received ...`
 
-## 14. Ejecutar k6
+## 15. Ejecutar k6
 
 ### Smoke test
 
@@ -423,7 +439,7 @@ Capturar siempre del resumen final:
 - p99
 - throughput
 
-## 15. Verificar Prometheus, alertas, metricas y Grafana
+## 16. Verificar Prometheus, alertas, metricas y Grafana
 
 Si Prometheus ya estaba arriba antes de actualizar `infra/prometheus/prometheus.yml`, reiniciarlo una vez para forzar la recarga:
 
@@ -467,14 +483,14 @@ Mensaje honesto:
 - S21 agrego metricas reales de microservicios mediante Actuator y Micrometer Prometheus
 - S28 agrega reglas activas de Prometheus para disponibilidad, target faltante, 5xx y p95 de latencia
 - S29 agrega `Idempotency-Key` real para `POST /api/enrollments` y `POST /api/billings`
+- S30 agrega outbox transaccional para `EnrollmentCreatedEvent` y `BillingStatusChangedEvent`
 - el workflow Maven local sigue intacto, pero los targets por nombre de servicio Docker solo apareceran `UP` en la UI de Prometheus cuando `docker-compose.apps.yml` este activo
 - si Prometheus ya venia ejecutandose desde una corrida anterior, puede requerir un `restart prometheus` para recargar la nueva configuracion montada
 - Alertmanager y notificaciones externas siguen fuera del alcance actual
 - Grafana sigue disponible, pero dashboards de negocio, replicas y clustering siguen como mejora futura
-- el outbox transaccional sigue pendiente para S30
 - la compensacion completa de sagas sigue pendiente para S31
 
-## 16. Observacion de falla controlada de infraestructura
+## 17. Observacion de falla controlada de infraestructura
 
 Escenario recomendado: degradacion de Redis con `course-service` arriba.
 
@@ -493,7 +509,7 @@ docker exec -i campusenroll-redis redis-cli --scan --pattern "courses::*"
 
 Ademas, mantener visible la consola o logs de `course-service` para capturar el fallback de cache.
 
-## 17. Restore de backup con advertencia visible
+## 18. Restore de backup con advertencia visible
 
 Usar este paso solo como prueba manual controlada. El restore sobrescribe objetos actuales de la base.
 
@@ -514,7 +530,7 @@ Mensaje honesto de S22:
 - esto fortalece la continuidad operativa y la defensa academica del proyecto
 - produccion seguiria necesitando automatizacion, almacenamiento off-site, cifrado y politicas de retencion probadas
 
-## 18. S25 - failover y switchover a nivel de aplicacion con HAProxy
+## 19. S25 - failover y switchover a nivel de aplicacion con HAProxy
 
 Levantar el modo demo:
 
