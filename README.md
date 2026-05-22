@@ -215,3 +215,8 @@ Mensaje honesto:
 - `docs/final/EVIDENCE_PLACEHOLDERS.md`
 - `infra/backups/DISASTER_RECOVERY_RUNBOOK.md`
 - `infra/k6/README.md`
+
+## Course Alignment Audit
+
+- `docs/course-audit/README.md`
+- `docs/course-audit/`
