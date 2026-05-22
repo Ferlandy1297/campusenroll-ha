@@ -220,3 +220,4 @@ Mensaje honesto:
 
 - `docs/course-audit/README.md`
 - `docs/course-audit/`
+- `docs/course-audit/S27_EVIDENCE_SUMMARY.md`

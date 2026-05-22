@@ -33,6 +33,17 @@ This audit intentionally keeps the following boundaries:
 - `PRESENTATION_COVERAGE_MAP.md` translates the technical mapping into demo talking points.
 - `CODEX_AUDIT_SUMMARY.md` records what was inspected and the final audit conclusion.
 
+## S27 Evidence Hardening Package
+
+These S27 files turn the S26 gap analysis into presentation-ready support material without changing runtime code or infrastructure:
+
+- `EXPLAIN_AND_INDEX_EVIDENCE.md`
+- `TRANSACTIONS_CONCURRENCY_IDEMPOTENCY.md`
+- `DCL_SECURITY_NOTES.md`
+- `SLO_ALERTING_PROPOSAL.md`
+- `HA_TERMINOLOGY_AND_LIMITS.md`
+- `S27_EVIDENCE_SUMMARY.md`
+
 ## High-Level Mapping To Database II
 
 CampusEnroll HA already aligns strongly with the course in the following areas:
