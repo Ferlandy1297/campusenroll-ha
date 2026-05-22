@@ -1,4 +1,4 @@
-# Demo Commands - PowerShell - S22
+# Demo Commands - PowerShell - S25
 
 ## 1. Confirmar variables locales
 
@@ -413,3 +413,59 @@ Mensaje honesto de S22:
 - ahora existe una estrategia local de backup y restore para PostgreSQL
 - esto fortalece la continuidad operativa y la defensa academica del proyecto
 - produccion seguiria necesitando automatizacion, almacenamiento off-site, cifrado y politicas de retencion probadas
+
+## 18. S25 - failover y switchover a nivel de aplicacion con HAProxy
+
+Levantar el modo demo:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml ps
+```
+
+Verificacion inicial:
+
+```powershell
+curl.exe -i http://localhost:8080/api/courses
+curl.exe -i http://localhost:8080/health/course
+Start-Process "http://localhost:8404/stats"
+```
+
+Failover por caida del primario:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml stop course-service
+curl.exe -i http://localhost:8080/api/courses
+```
+
+Resultado esperado:
+
+- el gateway sigue devolviendo `HTTP 200`
+- la continuidad la mantiene `course-service-replica`
+- HAProxy detecta la caida del primario porque su `GET /health` deja de responder
+
+Recuperar el primario:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml start course-service
+curl.exe -i http://localhost:8080/api/courses
+```
+
+Switchover planeado:
+
+- usar el mismo `stop course-service` como salida controlada por mantenimiento
+- verificar que el gateway sigue respondiendo
+- reiniciar el primario y dejarlo volver al pool
+
+Atajos con script:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infra/ha/failover-demo.ps1 -OpenStats
+powershell -ExecutionPolicy Bypass -File infra/ha/switchover-demo.ps1 -OpenStats
+```
+
+Mensaje exacto para la defensa:
+
+- esto si es failover y switchover a nivel de aplicacion para `course-service`
+- esto no es failover de PostgreSQL
+- PostgreSQL sigue centralizado y su recuperacion actual se resuelve con backup y restore
