@@ -342,7 +342,7 @@ Capturar siempre del resumen final:
 - p99
 - throughput
 
-## 15. Verificar Prometheus, metricas y Grafana
+## 15. Verificar Prometheus, alertas, metricas y Grafana
 
 Si Prometheus ya estaba arriba antes de actualizar `infra/prometheus/prometheus.yml`, reiniciarlo una vez para forzar la recarga:
 
@@ -358,21 +358,37 @@ curl.exe http://localhost:8084/actuator/prometheus
 curl.exe http://localhost:8085/actuator/prometheus
 docker compose ps prometheus grafana
 Start-Process 'http://localhost:9090/targets'
+Start-Process 'http://localhost:9090/alerts'
+Start-Process 'http://localhost:9090/rules'
 Start-Process 'http://localhost:3000'
+```
+
+Comandos de validacion S28:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml up -d --build prometheus
+Start-Sleep -Seconds 20
+curl.exe http://localhost:9090/-/ready
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml restart prometheus
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml logs prometheus --tail=120
 ```
 
 Capturas recomendadas:
 
 - respuestas no vacias de los cinco endpoints `/actuator/prometheus`
 - Prometheus con `prometheus`, `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` en estado `UP`
+- UI de `Alerts` mostrando las reglas cargadas
+- UI de `Rules` mostrando los grupos `campusenroll-availability` y `campusenroll-http`
 - Grafana accesible y respondiendo
 
 Mensaje honesto:
 
 - S21 agrego metricas reales de microservicios mediante Actuator y Micrometer Prometheus
+- S28 agrega reglas activas de Prometheus para disponibilidad, target faltante, 5xx y p95 de latencia
 - el workflow Maven local sigue intacto, pero los targets por nombre de servicio Docker solo apareceran `UP` en la UI de Prometheus cuando `docker-compose.apps.yml` este activo
 - si Prometheus ya venia ejecutandose desde una corrida anterior, puede requerir un `restart prometheus` para recargar la nueva configuracion montada
-- Grafana sigue disponible, pero dashboards de negocio, alertas, replicas y clustering siguen como mejora futura
+- Alertmanager y notificaciones externas siguen fuera del alcance actual
+- Grafana sigue disponible, pero dashboards de negocio, replicas y clustering siguen como mejora futura
 
 ## 16. Observacion de falla controlada de infraestructura
 

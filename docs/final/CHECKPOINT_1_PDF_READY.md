@@ -60,7 +60,7 @@ Mensaje central:
 - retencion automatizada
 - Kubernetes o Docker Swarm
 - dashboards Grafana listos para plataforma y negocio
-- alertas Prometheus/Grafana
+- Alertmanager, notificaciones externas y gobierno operativo de alertas
 
 ## 3. Objetivo tecnico de S22
 
@@ -105,7 +105,7 @@ Tabla de componentes:
 | Redis | Implementado | Cache de lectura y healthcheck |
 | RabbitMQ | Implementado | Broker de eventos y healthcheck |
 | Prometheus | Implementado con alcance local | Infra disponible, healthcheck activo y scrape real de los cinco microservicios en HA readiness mode |
-| Grafana | Parcial | UI accesible; dashboards y alertas siguen pendientes |
+| Grafana | Parcial | UI accesible; dashboards siguen pendientes y no hay Alertmanager cableado |
 
 [Insertar evidencia E02 - compose base e infraestructura]
 [Insertar evidencia E03 - compose apps con servicios Spring Boot]
@@ -423,7 +423,7 @@ Metricas minimas a reportar:
 
 ## 15. Prometheus y Grafana
 
-Prometheus y Grafana forman parte del entorno local. En S21, Prometheus deja de ser solo infraestructura pasiva y pasa a scrapear metricas reales de los cinco microservicios cuando el modo HA readiness esta activo. Aun asi, esto no debe presentarse como una observabilidad completa de negocio o de produccion.
+Prometheus y Grafana forman parte del entorno local. En S21, Prometheus deja de ser solo infraestructura pasiva y pasa a scrapear metricas reales de los cinco microservicios cuando el modo HA readiness esta activo. En S28, Prometheus tambien pasa a cargar reglas activas de alerting para disponibilidad, target faltante, 5xx y p95 de latencia. Aun asi, esto no debe presentarse como una observabilidad completa de negocio o de produccion.
 
 Prometheus:
 
@@ -435,6 +435,8 @@ curl.exe http://localhost:8083/actuator/prometheus
 curl.exe http://localhost:8084/actuator/prometheus
 curl.exe http://localhost:8085/actuator/prometheus
 Start-Process 'http://localhost:9090/targets'
+Start-Process 'http://localhost:9090/alerts'
+Start-Process 'http://localhost:9090/rules'
 ```
 
 Grafana:
@@ -446,10 +448,11 @@ Start-Process 'http://localhost:3000'
 Estado honesto:
 
 - Prometheus ya scrapea `prometheus` y las cinco aplicaciones en modo HA readiness
+- Prometheus ya carga reglas activas para `CampusEnrollServiceDown`, `CampusEnrollPrometheusTargetMissing`, `CampusEnrollHighHttpErrorRate` y `CampusEnrollHighP95Latency`
 - los endpoints `GET /actuator/prometheus` tambien pueden verificarse desde host en `localhost:8081` a `localhost:8085`
 - el workflow Maven local sigue intacto, pero los targets por nombre de servicio Docker solo apareceran `UP` cuando `docker-compose.apps.yml` este activo
 - si el contenedor de Prometheus ya estaba corriendo desde antes, puede requerir un reinicio puntual para recargar la `prometheus.yml` montada
-- Grafana sigue accesible, pero el repo todavia no entrega dashboards de negocio ni alertas listas
+- Grafana sigue accesible, pero el repo todavia no entrega dashboards de negocio ni Alertmanager cableado
 
 [Insertar evidencia E18 - Prometheus targets]
 [Insertar evidencia E19 - endpoints actuator prometheus]
@@ -507,7 +510,7 @@ Los siguientes puntos deben quedar expresados como pendientes, no como trabajo y
 - RabbitMQ cluster
 - orquestacion con Kubernetes o Docker Swarm
 - dashboards Grafana listos para plataforma y negocio
-- alertas Prometheus/Grafana
+- Alertmanager, notificaciones externas y dashboards operativos completos
 
 ## 18. Conclusiones
 

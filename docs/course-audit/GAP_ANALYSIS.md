@@ -29,7 +29,7 @@
 - Add a docs-only concurrency note that ties `uq_enrollments_active_student_section`, `saveAndFlush`, and `infra/k6/concurrent-enrollment-test.js` together.
 - Add a docs-only idempotency note that explains what the project already prevents and what it does not prevent.
 - Add a docs-only DCL/security note. Even a small appendix with recommended roles and `GRANT` examples would improve alignment with the course without forcing schema change in this phase.
-- Add a docs-only SLO and alerting proposal, or a very small Prometheus alert rules example if the team later decides the scope is safe.
+- S27 and S28 already closed the SLO and alerting documentation gap with a real Prometheus rules file plus updated presentation-safe wording.
 - Refresh or annotate stale diagrams and early planning docs in a later docs-only segment so they stop understating the current runtime state.
 
 ## D. Production-level upgrades not recommended to implement now
