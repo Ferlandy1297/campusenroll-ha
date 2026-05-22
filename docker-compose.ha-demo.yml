@@ -1,0 +1,48 @@
+services:
+  course-service-replica:
+    build:
+      context: ./backend/course-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8082
+      COURSE_SERVICE_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      COURSE_SERVICE_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      COURSE_SERVICE_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    expose:
+      - "8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8082/health > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - local-net
+
+  haproxy:
+    image: haproxy:2.9-alpine
+    restart: unless-stopped
+    depends_on:
+      course-service:
+        condition: service_healthy
+      course-service-replica:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+      - "8404:8404"
+    volumes:
+      - ./infra/load-balancer/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      - local-net
+
+networks:
+  local-net:
+    driver: bridge

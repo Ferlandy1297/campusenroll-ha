@@ -1,12 +1,12 @@
-# Demo Script - Entrega Final S22
+# Demo Script - Entrega Final S25
 
 ## Objetivo
 
-Exponer en 6 a 9 minutos el estado real de CampusEnroll HA despues de S22, sin sobredeclarar cluster, failover, backups productivos ni observabilidad de nivel productivo que el repo aun no entrega.
+Exponer en 7 a 9 minutos el estado real de CampusEnroll HA despues de S25, sin sobredeclarar cluster, failover de base de datos, backups productivos ni observabilidad de nivel productivo que el repo aun no entrega.
 
 Mensaje central:
 
-`CampusEnroll HA ya tiene flujo funcional, cache Redis, eventos RabbitMQ, healthchecks, modo Compose HA-ready, metricas Prometheus reales por microservicio y backup/restore local de PostgreSQL; eso no equivale todavia a alta disponibilidad productiva.`
+`CampusEnroll HA ya tiene flujo funcional, cache Redis, eventos RabbitMQ, healthchecks, modo Compose HA-ready, metricas Prometheus reales por microservicio, backup/restore local de PostgreSQL y ahora failover/switchover de aplicacion para course-service mediante HAProxy; eso no equivale todavia a alta disponibilidad productiva ni a failover de base de datos.`
 
 ## 0. Preparacion previa
 
@@ -27,7 +27,7 @@ Antes de iniciar la demo:
 
 Guion sugerido:
 
-"Este es CampusEnroll HA. La base actual ya permite demostrar estudiantes, catalogo, inscripciones y cobros. S20 agrego el modo Compose para levantar tambien los cinco microservicios Spring Boot con restart policy y healthchecks. S21 completo esa base con metricas Prometheus reales en los cinco servicios. S22 agrega backup, restore y un runbook de recuperacion para PostgreSQL, sin romper el workflow Maven local."
+"Este es CampusEnroll HA. La base actual ya permite demostrar estudiantes, catalogo, inscripciones y cobros. S20 agrego el modo Compose para levantar tambien los cinco microservicios Spring Boot con restart policy y healthchecks. S21 completo esa base con metricas Prometheus reales en los cinco servicios. S22 agrega backup, restore y un runbook de recuperacion para PostgreSQL. S25 suma failover y switchover a nivel de aplicacion para course-service usando HAProxy y una replica, sin romper el workflow Maven local."
 
 Mostrar:
 
@@ -38,12 +38,13 @@ Mostrar:
 
 Guion sugerido:
 
-"Ahora el repo tiene dos modos claros. El standard mode mantiene `docker-compose.yml` para infraestructura compartida. El HA readiness mode agrega `docker-compose.apps.yml` para contenedorizacion local de los cinco servicios."
+"Ahora el repo tiene tres capas claras. El standard mode mantiene `docker-compose.yml` para infraestructura compartida. El HA readiness mode agrega `docker-compose.apps.yml` para contenedorizacion local de los cinco servicios. Y S25 suma `docker-compose.ha-demo.yml` para el demo de continuidad del catalogo con HAProxy."
 
 Mostrar:
 
 - `docker-compose.yml`
 - `docker-compose.apps.yml`
+- `docker-compose.ha-demo.yml`
 - `docker compose -f docker-compose.yml -f docker-compose.apps.yml ps`
 
 ## 3. Base de datos determinista y verificacion S22 - 1:30 a 2:20
@@ -125,11 +126,32 @@ Mostrar:
 - `http://localhost:9090/targets`
 - `http://localhost:3000`
 
-## 8. Backup, restore y cierre honesto - 6:10 a 7:30
+## 8. Failover y switchover de aplicacion - 6:10 a 7:10
 
 Guion sugerido:
 
-"La evidencia final de S22 ya no solo incluye metricas y recuperacion de servicios. Ahora tambien incluye backup manual de PostgreSQL, restore con advertencia visible y un runbook de recuperacion para perdida de datos, corrupcion del volumen o reconstruccion del entorno local."
+"S25 no agrega failover de base de datos. Lo que si agrega es continuidad a nivel de aplicacion para course-service. HAProxy queda delante del catalogo academico y monitorea `course-service` y `course-service-replica` con `GET /health`. Si el primario cae o se saca por mantenimiento, el gateway sigue respondiendo."
+
+Mostrar:
+
+- `docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml up -d --build`
+- `curl.exe -i http://localhost:8080/api/courses`
+- `Start-Process "http://localhost:8404/stats"`
+- `docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml stop course-service`
+- `curl.exe -i http://localhost:8080/api/courses`
+- `docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml start course-service`
+
+Puntos a remarcar:
+
+- esto es failover/switchover de aplicacion, no failover de PostgreSQL
+- ambos `course-service` usan la misma base PostgreSQL centralizada
+- la continuidad se limita al catalogo academico en este segmento
+
+## 9. Backup, restore y cierre honesto - 7:10 a 8:20
+
+Guion sugerido:
+
+"La evidencia final ya no solo incluye metricas y recuperacion de servicios. Tambien incluye backup manual de PostgreSQL, restore con advertencia visible y un runbook de recuperacion para perdida de datos, corrupcion del volumen o reconstruccion del entorno local. Y ahora queda claro que esa parte es la estrategia de recuperacion de datos, separada del failover de aplicacion que se mostro con HAProxy."
 
 Mostrar:
 
@@ -145,3 +167,7 @@ Mostrar:
 Cierre sugerido:
 
 "En conclusion, CampusEnroll HA ya es demostrable como plataforma local HA-ready: tiene empaquetado por servicio, restart policies, healthchecks, cache Redis, eventos RabbitMQ, metricas Prometheus reales, activos de validacion y una capa local de backup/restore para PostgreSQL. Lo que sigue pendiente es la alta disponibilidad productiva con replicas, balanceo, automatizacion de backups, almacenamiento off-site, cifrado, alertas, dashboards, clusters y failover."
+
+Si preguntan por PostgreSQL failover, responder:
+
+"No esta implementado. S25 cubre failover y switchover de la aplicacion course-service a traves de HAProxy. PostgreSQL sigue centralizado y la recuperacion actual del proyecto es backup y restore."

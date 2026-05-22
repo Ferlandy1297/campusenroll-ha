@@ -12,12 +12,15 @@ CampusEnroll HA ya tiene una base funcional para:
 - metricas reales Actuator/Prometheus en los cinco microservicios
 - `db/schema.sql` y `db/data.sql` para carga determinista de PostgreSQL
 - `infra/backups/` con scripts PowerShell para backup, restore y verificacion de PostgreSQL
+- `docker-compose.ha-demo.yml` e `infra/load-balancer/` para failover y switchover de aplicacion en `course-service`
 - `postman/` como cliente operativo actual
 - `infra/k6/` como paquete de validacion final
 
 La entrega actual ya no depende solo del flujo local con Maven. El repo soporta dos modos de ejecucion sin reemplazar el workflow existente.
 
 S22 agrega una capa practica de backup y recuperacion ante desastres para PostgreSQL. Esto fortalece la continuidad operativa local y la narrativa de HA readiness sin convertir el proyecto en una plataforma productiva de alta disponibilidad.
+
+S25 agrega una capa de failover y switchover a nivel de aplicacion para `course-service` mediante HAProxy y `course-service-replica`. Esto protege el catalogo academico ante la caida del proceso del servicio, pero no cambia la regla de PostgreSQL centralizado ni implementa failover de base de datos.
 
 Alcance honesto:
 
@@ -69,6 +72,33 @@ Importante:
 - el workflow con Maven local sigue siendo valido y no fue removido
 - Prometheus scrapea `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` por nombre interno Docker cuando este modo esta activo
 - si Prometheus ya estaba corriendo antes del cambio de configuracion, reinicialo una vez con `docker compose -f docker-compose.yml -f docker-compose.apps.yml restart prometheus`
+
+### 3. Application failover / switchover demo
+
+`docker-compose.ha-demo.yml` agrega una tercera capa de demo para continuidad del catalogo:
+
+- `course-service-replica` sin publicar `8082` al host
+- `haproxy` en `http://localhost:8080`
+- stats locales de HAProxy en `http://localhost:8404/stats`
+
+Comandos:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml ps
+```
+
+Esta capa demuestra:
+
+- failover y switchover a nivel de aplicacion para `GET /api/courses`, `GET /api/periods`, `GET /api/sections` y `GET /health/course`
+- chequeo de salud HTTP con `GET /health`
+- continuidad del gateway cuando el `course-service` primario se detiene
+
+Importante:
+
+- esto no implementa failover de PostgreSQL
+- recuperacion de base de datos sigue en `infra/backups/`
+- guia detallada: [Application Failover / Switchover Demo](docs/ha/APPLICATION_FAILOVER_SWITCHOVER_DEMO.md)
 
 ## Flujo local recomendado
 
@@ -138,10 +168,12 @@ Mensaje honesto:
 - `restart: unless-stopped` en infraestructura y servicios de aplicacion en modo Compose
 - healthchecks para PostgreSQL, Redis, RabbitMQ, Prometheus, Grafana y los cinco servicios Spring Boot
 - contenedorizacion de los cinco servicios de negocio mediante `docker-compose.apps.yml`
+- `docker-compose.ha-demo.yml` con `course-service-replica` y HAProxy para continuidad del catalogo academico
 - endpoints `GET /actuator/health`, `GET /actuator/info` y `GET /actuator/prometheus` en los cinco servicios
 - Prometheus scrapeando metricas reales de los cinco microservicios en modo HA readiness
 - Redis real en `course-service`
 - RabbitMQ real para publicacion y consumo de eventos de evidencia
+- failover y switchover a nivel de aplicacion para `course-service` usando health checks HTTP en HAProxy
 - backup manual de PostgreSQL con `infra/backups/backup-postgres.ps1`
 - restore manual de PostgreSQL con `infra/backups/restore-postgres.ps1`
 - verificacion de base con `infra/backups/verify-database.ps1`
@@ -152,14 +184,14 @@ Mensaje honesto:
 ## Que sigue siendo mejora futura
 
 - cluster multinodo real
+- failover equivalente para `student-service`, `enrollment-service`, `billing-service` y `notification`
 - replicacion o failover de PostgreSQL
 - Redis cluster
 - RabbitMQ cluster
-- balanceador real con replicas multiples
+- entrypoint unico para todos los microservicios detras del balanceador
 - Kubernetes o Docker Swarm
 - dashboards Grafana listos para plataforma y negocio
 - alertas Prometheus/Grafana
-- gateway operativo como entrypoint real
 - backups programados
 - almacenamiento off-site
 - cifrado de backups
@@ -171,11 +203,14 @@ Mensaje honesto:
 - Prometheus: `http://localhost:9090`
 - Prometheus targets: `http://localhost:9090/targets`
 - Grafana: `http://localhost:3000`
+- HAProxy gateway: `http://localhost:8080`
+- HAProxy stats: `http://localhost:8404/stats`
 
 ## Documentacion recomendada
 
 - `docs/demo/DEMO_COMMANDS.md`
 - `docs/demo/EVIDENCE_CHECKLIST.md`
+- `docs/ha/APPLICATION_FAILOVER_SWITCHOVER_DEMO.md`
 - `docs/final/CHECKPOINT_1_PDF_READY.md`
 - `docs/final/EVIDENCE_PLACEHOLDERS.md`
 - `infra/backups/DISASTER_RECOVERY_RUNBOOK.md`
