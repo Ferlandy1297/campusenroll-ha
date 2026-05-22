@@ -3,11 +3,11 @@ package com.campusenroll.billing.billing;
 import com.campusenroll.billing.billing.dto.BillingResponse;
 import com.campusenroll.billing.billing.dto.CreateBillingRequest;
 import com.campusenroll.billing.billing.dto.UpdateBillingStatusRequest;
-import com.campusenroll.billing.messaging.BillingEventPublisher;
 import com.campusenroll.billing.error.ConflictException;
 import com.campusenroll.billing.error.ResourceNotFoundException;
 import com.campusenroll.billing.idempotency.IdempotentResponse;
 import com.campusenroll.billing.idempotency.IdempotencyService;
+import com.campusenroll.billing.outbox.BillingOutboxService;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -22,15 +22,15 @@ public class BillingService {
     private static final String CREATE_OPERATION = "create-billing";
 
     private final BillingRepository billingRepository;
-    private final BillingEventPublisher billingEventPublisher;
+    private final BillingOutboxService billingOutboxService;
     private final IdempotencyService idempotencyService;
 
     public BillingService(
             BillingRepository billingRepository,
-            BillingEventPublisher billingEventPublisher,
+            BillingOutboxService billingOutboxService,
             IdempotencyService idempotencyService) {
         this.billingRepository = billingRepository;
-        this.billingEventPublisher = billingEventPublisher;
+        this.billingOutboxService = billingOutboxService;
         this.idempotencyService = idempotencyService;
     }
 
@@ -96,7 +96,7 @@ public class BillingService {
         billing.setStatus(nextStatus);
         BillingResponse response = saveBilling(billing);
         if (previousStatus != nextStatus) {
-            billingEventPublisher.publishBillingStatusChanged(billing, previousStatus, nextStatus);
+            billingOutboxService.enqueueBillingStatusChanged(billing, previousStatus, nextStatus);
         }
         return response;
     }

@@ -127,7 +127,7 @@ Why it matters:
 - application-level pre-check with `existsByStudentIdAndSectionIdAndStatus(...)`
 - relational fallback through the partial unique index `uq_enrollments_active_student_section`
 
-The service then calls `saveAndFlush(...)` before publishing the RabbitMQ event. That ordering matters because a late database conflict should not emit a false-positive enrollment event.
+The service then calls `saveAndFlush(...)` before enqueueing the transactional outbox event. That ordering still matters because a late database conflict should not create a false-positive event intent.
 
 ### 3. Duplicate pending billing protection
 
@@ -166,10 +166,33 @@ Why it matters:
 
 - client retries do not create duplicate enrollment rows
 - client retries do not create duplicate billing rows
-- replayed enrollment requests do not republish `EnrollmentCreatedEvent`
+- replayed enrollment requests do not create duplicate outbox rows or republish `EnrollmentCreatedEvent`
 - the solution stays aligned with Database II because the concurrency guard is still enforced by PostgreSQL
 
-### 6. k6 concurrent enrollment evidence
+### 6. Transactional outbox for RabbitMQ reliability
+
+S30 adds a real transactional outbox for the event-producing services:
+
+- enrollment creation writes the enrollment row and an `outbox_events` row atomically
+- billing status changes write the billing update and an `outbox_events` row atomically
+- a scheduled publisher in each producer service reads pending outbox rows and publishes them to RabbitMQ
+- after a successful publish, the row is marked `PUBLISHED`
+- on failure, the row records `attempts` and `last_error`
+- after a small retry threshold, the row is marked `FAILED`
+
+This improves reliability because the business write and the event intent are now persisted together in PostgreSQL before RabbitMQ delivery.
+
+It does not mean:
+
+- exactly-once distributed delivery
+- full saga compensation
+- a transactional broker plus database two-phase commit
+
+The correct phrase is:
+
+`CampusEnroll HA now implements a transactional outbox for the enrollment and billing producers. That improves event reliability, but it is not the same as full saga compensation or exactly-once distributed delivery.`
+
+### 7. k6 concurrent enrollment evidence
 
 The repo includes a focused concurrency test:
 
@@ -190,10 +213,9 @@ The current repo does not implement:
 - explicit `FOR UPDATE` locking
 - a deadlock retry framework
 - full idempotency coverage for every write endpoint
-- the outbox pattern
 - full saga compensation
 - seat inventory reservation logic
-- automatic retry semantics for failed event publication
+- automatic replay-safe exactly-once event delivery across services
 
 These gaps should be presented as future production hardening work, not as missing fundamentals for the current academic delivery.
 
@@ -232,13 +254,14 @@ Current idempotency-related strengths:
 Current idempotency limitations:
 
 - not every write endpoint in the platform uses idempotency keys yet
-- the transactional outbox planned for S30 is still not implemented
+- only selected critical endpoints currently expose `Idempotency-Key`
+- the transactional outbox is now implemented only for the current event-producing services
 - the full saga compensation planned for S31 is still not implemented
-- the RabbitMQ flow is not yet a fully durable replay-safe distributed pipeline
+- the RabbitMQ flow is still not a fully replay-safe exactly-once distributed pipeline
 
 So the correct phrase is:
 
-`CampusEnroll HA now implements real API idempotency keys for selected critical write endpoints, but it still does not implement the transactional outbox planned for S30 or the full saga compensation planned for S31.`
+`CampusEnroll HA now implements real API idempotency keys for selected critical write endpoints and a transactional outbox for the current event-producing services, but it still does not implement full saga compensation planned for S31.`
 
 ## Relationship to RabbitMQ choreography
 
@@ -246,13 +269,14 @@ The messaging flow is real, but limited.
 
 Current behavior:
 
-- enrollment publishes `EnrollmentCreatedEvent`
-- billing publishes `BillingStatusChangedEvent`
-- notification consumes both and records evidence
+- enrollment writes `EnrollmentCreatedEvent` into `outbox_events`, then a scheduled publisher sends it to RabbitMQ
+- billing writes `BillingStatusChangedEvent` into `outbox_events`, then a scheduled publisher sends it to RabbitMQ
+- notification still consumes both published events and records evidence
 
 Current limit:
 
-- there is no full distributed saga with compensation, retries, and durable outbox semantics
+- there is no full distributed saga with compensation
+- there is no exactly-once end-to-end delivery guarantee across PostgreSQL and RabbitMQ
 
 That means the current system is better described as lightweight event choreography than as a complete saga platform.
 
@@ -270,12 +294,14 @@ Inspect the table and index shape directly:
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d enrollments"
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d billings"
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d idempotency_records"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d outbox_events"
 ```
 
 Inspect the stored idempotency records:
 
 ```powershell
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, service_name, operation_name, idempotency_key, status, response_status, created_at, completed_at FROM idempotency_records ORDER BY id;"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, service_name, event_type, routing_key, status, attempts, created_at, published_at FROM outbox_events ORDER BY id DESC LIMIT 20;"
 ```
 
 Run the concurrent enrollment evidence scenario:
@@ -351,7 +377,7 @@ docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT i
 
 Use wording like this:
 
-`CampusEnroll HA already uses real PostgreSQL transactions and relational constraints to protect critical operations. In S29 it also adds real Idempotency-Key support for POST /api/enrollments and POST /api/billings, backed by a PostgreSQL idempotency_records table. That is stronger than duplicate-only protection, but it is still not a full seat-capacity anti-oversell system, a transactional outbox, or full saga compensation.`
+`CampusEnroll HA already uses real PostgreSQL transactions and relational constraints to protect critical operations. In S29 it adds real Idempotency-Key support for POST /api/enrollments and POST /api/billings, backed by a PostgreSQL idempotency_records table. In S30 it adds a transactional outbox for the enrollment and billing producers, so business writes and event intents are persisted atomically before RabbitMQ delivery. That is stronger than duplicate-only protection, but it is still not a full seat-capacity anti-oversell system or full saga compensation.`
 
 ## Bottom line
 
@@ -361,6 +387,7 @@ CampusEnroll HA is already defensible in Database II terms because it combines:
 - PostgreSQL MVCC and constraint enforcement
 - concurrency-aware duplicate protection
 - selected API idempotency keys backed by PostgreSQL
+- transactional outbox persistence for producer events
 - a dedicated k6 concurrency asset
 
 The missing pieces are advanced production refinements, not proof that the current system lacks transactional discipline.

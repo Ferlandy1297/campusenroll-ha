@@ -3,11 +3,11 @@ package com.campusenroll.enrollmentservice.enrollment;
 import com.campusenroll.enrollmentservice.enrollment.dto.CreateEnrollmentRequest;
 import com.campusenroll.enrollmentservice.enrollment.dto.EnrollmentResponse;
 import com.campusenroll.enrollmentservice.enrollment.dto.UpdateEnrollmentStatusRequest;
-import com.campusenroll.enrollmentservice.messaging.EnrollmentEventPublisher;
 import com.campusenroll.enrollmentservice.error.ConflictException;
 import com.campusenroll.enrollmentservice.error.ResourceNotFoundException;
 import com.campusenroll.enrollmentservice.idempotency.IdempotentResponse;
 import com.campusenroll.enrollmentservice.idempotency.IdempotencyService;
+import com.campusenroll.enrollmentservice.outbox.EnrollmentOutboxService;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,15 +23,15 @@ public class EnrollmentService {
     private static final String CREATE_OPERATION = "create-enrollment";
 
     private final EnrollmentRepository enrollmentRepository;
-    private final EnrollmentEventPublisher enrollmentEventPublisher;
+    private final EnrollmentOutboxService enrollmentOutboxService;
     private final IdempotencyService idempotencyService;
 
     public EnrollmentService(
             EnrollmentRepository enrollmentRepository,
-            EnrollmentEventPublisher enrollmentEventPublisher,
+            EnrollmentOutboxService enrollmentOutboxService,
             IdempotencyService idempotencyService) {
         this.enrollmentRepository = enrollmentRepository;
-        this.enrollmentEventPublisher = enrollmentEventPublisher;
+        this.enrollmentOutboxService = enrollmentOutboxService;
         this.idempotencyService = idempotencyService;
     }
 
@@ -77,7 +77,7 @@ public class EnrollmentService {
 
         try {
             Enrollment savedEnrollment = enrollmentRepository.saveAndFlush(enrollment);
-            enrollmentEventPublisher.publishEnrollmentCreated(savedEnrollment);
+            enrollmentOutboxService.enqueueEnrollmentCreated(savedEnrollment);
             return toResponse(savedEnrollment);
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException(DUPLICATE_ACTIVE_ENROLLMENT_MESSAGE);

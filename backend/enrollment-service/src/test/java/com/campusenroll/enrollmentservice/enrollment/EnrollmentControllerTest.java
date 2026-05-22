@@ -170,7 +170,7 @@ class EnrollmentControllerTest {
         private RuntimeException getByIdException;
 
         private StubEnrollmentService() {
-            super(null, enrollment -> {}, null);
+            super(null, null, null);
         }
 
         @Override

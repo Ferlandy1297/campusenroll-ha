@@ -12,7 +12,7 @@ import com.campusenroll.enrollmentservice.idempotency.IdempotencyRecord;
 import com.campusenroll.enrollmentservice.idempotency.IdempotencyRecordRepository;
 import com.campusenroll.enrollmentservice.idempotency.IdempotencyRecordStatus;
 import com.campusenroll.enrollmentservice.idempotency.IdempotencyService;
-import com.campusenroll.enrollmentservice.messaging.EnrollmentEventPublisher;
+import com.campusenroll.enrollmentservice.outbox.EnrollmentOutboxService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.persistence.EntityManager;
@@ -34,10 +34,10 @@ class EnrollmentServiceTest {
     @Test
     void shouldCreateEnrollmentWithDefaultEnrolledStatus() {
         RepositoryState state = new RepositoryState();
-        RecordingEnrollmentEventPublisher eventPublisher = new RecordingEnrollmentEventPublisher();
+        RecordingEnrollmentOutboxService outboxService = new RecordingEnrollmentOutboxService();
         EnrollmentService enrollmentService = new EnrollmentService(
                 repository(state),
-                eventPublisher,
+                outboxService,
                 idempotencyService(new IdempotencyRepositoryState()));
 
         CreateEnrollmentRequest request = new CreateEnrollmentRequest();
@@ -53,17 +53,17 @@ class EnrollmentServiceTest {
         assertThat(response.enrolledAt()).isNotNull();
         assertThat(state.storage.values()).hasSize(1);
         assertThat(new ArrayList<>(state.storage.values()).get(0).getEnrolledAt()).isNotNull();
-        assertThat(eventPublisher.publishedEnrollments).hasSize(1);
-        assertThat(eventPublisher.publishedEnrollments.get(0).getId()).isEqualTo(1L);
+        assertThat(outboxService.enqueuedEnrollments).hasSize(1);
+        assertThat(outboxService.enqueuedEnrollments.get(0).getId()).isEqualTo(1L);
     }
 
     @Test
-    void shouldReplayCompletedEnrollmentForSameIdempotencyKeyWithoutPublishingDuplicateEvent() {
+    void shouldReplayCompletedEnrollmentForSameIdempotencyKeyWithoutQueueingDuplicateOutboxRow() {
         RepositoryState state = new RepositoryState();
         IdempotencyRepositoryState idempotencyState = new IdempotencyRepositoryState();
-        RecordingEnrollmentEventPublisher eventPublisher = new RecordingEnrollmentEventPublisher();
+        RecordingEnrollmentOutboxService outboxService = new RecordingEnrollmentOutboxService();
         EnrollmentService enrollmentService =
-                new EnrollmentService(repository(state), eventPublisher, idempotencyService(idempotencyState));
+                new EnrollmentService(repository(state), outboxService, idempotencyService(idempotencyState));
 
         CreateEnrollmentRequest request = new CreateEnrollmentRequest();
         request.setStudentId(100L);
@@ -81,7 +81,7 @@ class EnrollmentServiceTest {
         assertThat(replayedResponse.body().enrolledAt().toInstant())
                 .isEqualTo(firstResponse.body().enrolledAt().toInstant());
         assertThat(state.storage).hasSize(1);
-        assertThat(eventPublisher.publishedEnrollments).hasSize(1);
+        assertThat(outboxService.enqueuedEnrollments).hasSize(1);
         assertThat(idempotencyState.storage).hasSize(1);
         IdempotencyRecord storedRecord = new ArrayList<>(idempotencyState.storage.values()).get(0);
         assertThat(storedRecord.getStatus()).isEqualTo(IdempotencyRecordStatus.COMPLETED);
@@ -94,7 +94,7 @@ class EnrollmentServiceTest {
         IdempotencyRepositoryState idempotencyState = new IdempotencyRepositoryState();
         EnrollmentService enrollmentService = new EnrollmentService(
                 repository(state),
-                new RecordingEnrollmentEventPublisher(),
+                new RecordingEnrollmentOutboxService(),
                 idempotencyService(idempotencyState));
 
         CreateEnrollmentRequest firstRequest = new CreateEnrollmentRequest();
@@ -117,7 +117,7 @@ class EnrollmentServiceTest {
         RepositoryState state = new RepositoryState();
         EnrollmentService enrollmentService = new EnrollmentService(
                 repository(state),
-                new RecordingEnrollmentEventPublisher(),
+                new RecordingEnrollmentOutboxService(),
                 idempotencyService(new IdempotencyRepositoryState()));
 
         Enrollment existing = new Enrollment();
@@ -137,13 +137,13 @@ class EnrollmentServiceTest {
     }
 
     @Test
-    void shouldNotPublishEventWhenDatabaseConstraintRejectsCreate() {
+    void shouldNotQueueOutboxRowWhenDatabaseConstraintRejectsCreate() {
         RepositoryState state = new RepositoryState();
         state.saveAndFlushException = new DataIntegrityViolationException("duplicate active enrollment");
-        RecordingEnrollmentEventPublisher eventPublisher = new RecordingEnrollmentEventPublisher();
+        RecordingEnrollmentOutboxService outboxService = new RecordingEnrollmentOutboxService();
         EnrollmentService enrollmentService = new EnrollmentService(
                 repository(state),
-                eventPublisher,
+                outboxService,
                 idempotencyService(new IdempotencyRepositoryState()));
 
         CreateEnrollmentRequest request = new CreateEnrollmentRequest();
@@ -153,7 +153,7 @@ class EnrollmentServiceTest {
         assertThatThrownBy(() -> enrollmentService.create(request))
                 .isInstanceOf(ConflictException.class)
                 .hasMessage("An active enrollment already exists for this student and section");
-        assertThat(eventPublisher.publishedEnrollments).isEmpty();
+        assertThat(outboxService.enqueuedEnrollments).isEmpty();
         assertThat(state.storage).isEmpty();
     }
 
@@ -161,7 +161,7 @@ class EnrollmentServiceTest {
     void shouldRejectMissingEnrollmentOnStatusUpdate() {
         EnrollmentService enrollmentService = new EnrollmentService(
                 repository(new RepositoryState()),
-                new RecordingEnrollmentEventPublisher(),
+                new RecordingEnrollmentOutboxService(),
                 idempotencyService(new IdempotencyRepositoryState()));
 
         UpdateEnrollmentStatusRequest request = new UpdateEnrollmentStatusRequest();
@@ -177,7 +177,7 @@ class EnrollmentServiceTest {
         RepositoryState state = new RepositoryState();
         EnrollmentService enrollmentService = new EnrollmentService(
                 repository(state),
-                new RecordingEnrollmentEventPublisher(),
+                new RecordingEnrollmentOutboxService(),
                 idempotencyService(new IdempotencyRepositoryState()));
 
         Enrollment existing = new Enrollment();
@@ -250,12 +250,16 @@ class EnrollmentServiceTest {
         private long sequence = 1L;
     }
 
-    private static final class RecordingEnrollmentEventPublisher implements EnrollmentEventPublisher {
-        private final List<Enrollment> publishedEnrollments = new ArrayList<>();
+    private static final class RecordingEnrollmentOutboxService extends EnrollmentOutboxService {
+        private final List<Enrollment> enqueuedEnrollments = new ArrayList<>();
+
+        private RecordingEnrollmentOutboxService() {
+            super(null, null, "enrollment.created");
+        }
 
         @Override
-        public void publishEnrollmentCreated(Enrollment enrollment) {
-            publishedEnrollments.add(enrollment);
+        public void enqueueEnrollmentCreated(Enrollment enrollment) {
+            enqueuedEnrollments.add(enrollment);
         }
     }
 

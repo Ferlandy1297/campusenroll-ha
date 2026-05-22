@@ -1,8 +1,5 @@
 package com.campusenroll.enrollmentservice.messaging;
 
-import com.campusenroll.enrollmentservice.enrollment.Enrollment;
-import java.time.OffsetDateTime;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.AmqpException;
@@ -29,15 +26,7 @@ public class RabbitEnrollmentEventPublisher implements EnrollmentEventPublisher 
     }
 
     @Override
-    public void publishEnrollmentCreated(Enrollment enrollment) {
-        EnrollmentCreatedEvent event = new EnrollmentCreatedEvent(
-                UUID.randomUUID(),
-                enrollment.getId(),
-                enrollment.getStudentId(),
-                enrollment.getSectionId(),
-                enrollment.getStatus().name(),
-                OffsetDateTime.now());
-
+    public void publishEnrollmentCreated(EnrollmentCreatedEvent event) {
         try {
             amqpTemplate.convertAndSend(exchange, enrollmentCreatedRoutingKey, event);
             log.info(
@@ -48,9 +37,10 @@ public class RabbitEnrollmentEventPublisher implements EnrollmentEventPublisher 
         } catch (AmqpException ex) {
             log.warn(
                     "Failed to publish EnrollmentCreatedEvent enrollmentId={} routingKey={}: {}",
-                    enrollment.getId(),
+                    event.enrollmentId(),
                     enrollmentCreatedRoutingKey,
                     ex.getMessage());
+            throw ex;
         }
     }
 }

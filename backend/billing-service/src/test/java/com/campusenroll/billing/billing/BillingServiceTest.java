@@ -12,7 +12,7 @@ import com.campusenroll.billing.idempotency.IdempotencyRecord;
 import com.campusenroll.billing.idempotency.IdempotencyRecordRepository;
 import com.campusenroll.billing.idempotency.IdempotencyRecordStatus;
 import com.campusenroll.billing.idempotency.IdempotencyService;
-import com.campusenroll.billing.messaging.BillingEventPublisher;
+import com.campusenroll.billing.outbox.BillingOutboxService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.persistence.EntityManager;
@@ -37,7 +37,7 @@ class BillingServiceTest {
         RepositoryState state = new RepositoryState();
         BillingService billingService = new BillingService(
                 repository(state),
-                new RecordingBillingEventPublisher(),
+                new RecordingBillingOutboxService(),
                 idempotencyService(new IdempotencyRepositoryState()));
 
         Billing older = billing(100L, "99.99", "USD", BillingStatus.PENDING, OffsetDateTime.parse("2026-05-05T10:15:30Z"));
@@ -60,10 +60,10 @@ class BillingServiceTest {
     @Test
     void shouldCreateBilling() {
         RepositoryState state = new RepositoryState();
-        RecordingBillingEventPublisher eventPublisher = new RecordingBillingEventPublisher();
+        RecordingBillingOutboxService outboxService = new RecordingBillingOutboxService();
         BillingService billingService = new BillingService(
                 repository(state),
-                eventPublisher,
+                outboxService,
                 idempotencyService(new IdempotencyRepositoryState()));
 
         CreateBillingRequest request = new CreateBillingRequest();
@@ -82,7 +82,7 @@ class BillingServiceTest {
         assertThat(response.createdAt()).isNotNull();
         assertThat(state.storage.values()).hasSize(1);
         assertThat(new ArrayList<>(state.storage.values()).get(0).getEnrollmentId()).isEqualTo(100L);
-        assertThat(eventPublisher.publishedEvents).isEmpty();
+        assertThat(outboxService.statusChanges).isEmpty();
     }
 
     @Test
@@ -91,7 +91,7 @@ class BillingServiceTest {
         IdempotencyRepositoryState idempotencyState = new IdempotencyRepositoryState();
         BillingService billingService = new BillingService(
                 repository(state),
-                new RecordingBillingEventPublisher(),
+                new RecordingBillingOutboxService(),
                 idempotencyService(idempotencyState));
 
         CreateBillingRequest request = new CreateBillingRequest();
@@ -125,7 +125,7 @@ class BillingServiceTest {
         IdempotencyRepositoryState idempotencyState = new IdempotencyRepositoryState();
         BillingService billingService = new BillingService(
                 repository(state),
-                new RecordingBillingEventPublisher(),
+                new RecordingBillingOutboxService(),
                 idempotencyService(idempotencyState));
 
         CreateBillingRequest firstRequest = new CreateBillingRequest();
@@ -152,7 +152,7 @@ class BillingServiceTest {
         RepositoryState state = new RepositoryState();
         BillingService billingService = new BillingService(
                 repository(state),
-                new RecordingBillingEventPublisher(),
+                new RecordingBillingOutboxService(),
                 idempotencyService(new IdempotencyRepositoryState()));
 
         Billing existing = new Billing();
@@ -179,7 +179,7 @@ class BillingServiceTest {
         RepositoryState state = new RepositoryState();
         BillingService billingService = new BillingService(
                 repository(state),
-                new RecordingBillingEventPublisher(),
+                new RecordingBillingOutboxService(),
                 idempotencyService(new IdempotencyRepositoryState()));
 
         Billing existing = new Billing();
@@ -206,7 +206,7 @@ class BillingServiceTest {
     void shouldRejectMissingBillingOnStatusUpdate() {
         BillingService billingService = new BillingService(
                 repository(new RepositoryState()),
-                new RecordingBillingEventPublisher(),
+                new RecordingBillingOutboxService(),
                 idempotencyService(new IdempotencyRepositoryState()));
 
         UpdateBillingStatusRequest request = new UpdateBillingStatusRequest();
@@ -222,7 +222,7 @@ class BillingServiceTest {
         RepositoryState state = new RepositoryState();
         BillingService billingService = new BillingService(
                 repository(state),
-                new RecordingBillingEventPublisher(),
+                new RecordingBillingOutboxService(),
                 idempotencyService(new IdempotencyRepositoryState()));
 
         Billing target = new Billing();
@@ -250,12 +250,12 @@ class BillingServiceTest {
     }
 
     @Test
-    void shouldKeepBillingListCompatibleWhenStatusChangesFromPending() {
+    void shouldQueueBillingStatusChangeOutboxEventWhenStatusChangesFromPending() {
         RepositoryState state = new RepositoryState();
-        RecordingBillingEventPublisher eventPublisher = new RecordingBillingEventPublisher();
+        RecordingBillingOutboxService outboxService = new RecordingBillingOutboxService();
         BillingService billingService = new BillingService(
                 repository(state),
-                eventPublisher,
+                outboxService,
                 idempotencyService(new IdempotencyRepositoryState()));
 
         Billing existing = new Billing();
@@ -273,18 +273,18 @@ class BillingServiceTest {
 
         assertThat(response.status()).isEqualTo(BillingStatus.PAID);
         assertThat(state.storage.get(existing.getId()).getStatus()).isEqualTo(BillingStatus.PAID);
-        assertThat(eventPublisher.publishedEvents).hasSize(1);
-        assertThat(eventPublisher.publishedEvents.get(0).previousStatus).isEqualTo(BillingStatus.PENDING);
-        assertThat(eventPublisher.publishedEvents.get(0).newStatus).isEqualTo(BillingStatus.PAID);
+        assertThat(outboxService.statusChanges).hasSize(1);
+        assertThat(outboxService.statusChanges.get(0).previousStatus()).isEqualTo(BillingStatus.PENDING);
+        assertThat(outboxService.statusChanges.get(0).newStatus()).isEqualTo(BillingStatus.PAID);
     }
 
     @Test
-    void shouldNotPublishEventWhenStatusDoesNotChange() {
+    void shouldNotQueueOutboxEventWhenStatusDoesNotChange() {
         RepositoryState state = new RepositoryState();
-        RecordingBillingEventPublisher eventPublisher = new RecordingBillingEventPublisher();
+        RecordingBillingOutboxService outboxService = new RecordingBillingOutboxService();
         BillingService billingService = new BillingService(
                 repository(state),
-                eventPublisher,
+                outboxService,
                 idempotencyService(new IdempotencyRepositoryState()));
 
         Billing existing = new Billing();
@@ -301,7 +301,7 @@ class BillingServiceTest {
         BillingResponse response = billingService.updateStatus(existing.getId(), request);
 
         assertThat(response.status()).isEqualTo(BillingStatus.PENDING);
-        assertThat(eventPublisher.publishedEvents).isEmpty();
+        assertThat(outboxService.statusChanges).isEmpty();
     }
 
     private static BillingRepository repository(RepositoryState state) {
@@ -366,12 +366,16 @@ class BillingServiceTest {
         private long sequence = 1L;
     }
 
-    private static final class RecordingBillingEventPublisher implements BillingEventPublisher {
-        private final List<PublishedStatusChange> publishedEvents = new ArrayList<>();
+    private static final class RecordingBillingOutboxService extends BillingOutboxService {
+        private final List<PublishedStatusChange> statusChanges = new ArrayList<>();
+
+        private RecordingBillingOutboxService() {
+            super(null, null, "billing.status.changed");
+        }
 
         @Override
-        public void publishBillingStatusChanged(Billing billing, BillingStatus previousStatus, BillingStatus newStatus) {
-            publishedEvents.add(new PublishedStatusChange(billing.getId(), previousStatus, newStatus));
+        public void enqueueBillingStatusChanged(Billing billing, BillingStatus previousStatus, BillingStatus newStatus) {
+            statusChanges.add(new PublishedStatusChange(billing.getId(), previousStatus, newStatus));
         }
     }
 

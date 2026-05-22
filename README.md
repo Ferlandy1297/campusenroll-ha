@@ -6,8 +6,8 @@ CampusEnroll HA ya tiene una base funcional para:
 
 - `student-service` con endpoints de estudiantes
 - `course-service` con catalogo academico y cache Redis
-- `enrollment-service` con inscripciones y publicacion de `EnrollmentCreatedEvent`
-- `billing-service` con cobros y publicacion de `BillingStatusChangedEvent`
+- `enrollment-service` con inscripciones y outbox transaccional para `EnrollmentCreatedEvent`
+- `billing-service` con cobros y outbox transaccional para `BillingStatusChangedEvent`
 - `Idempotency-Key` real en `POST /api/enrollments` y `POST /api/billings`
 - `notification` como consumidor RabbitMQ para evidencia y logs
 - metricas reales Actuator/Prometheus en los cinco microservicios
@@ -174,7 +174,8 @@ Mensaje honesto:
 - Prometheus scrapeando metricas reales de los cinco microservicios en modo HA readiness
 - reglas activas de alerta Prometheus para caida de servicio, target faltante, error HTTP y p95 de latencia
 - Redis real en `course-service`
-- RabbitMQ real para publicacion y consumo de eventos de evidencia
+- outbox transaccional real en `enrollment-service` y `billing-service` para persistir eventos antes de publicarlos
+- RabbitMQ real para publicacion asincrona y consumo de eventos de evidencia
 - failover y switchover a nivel de aplicacion para `course-service` usando health checks HTTP en HAProxy
 - backup manual de PostgreSQL con `infra/backups/backup-postgres.ps1`
 - restore manual de PostgreSQL con `infra/backups/restore-postgres.ps1`
@@ -195,6 +196,7 @@ Mensaje honesto:
 - Kubernetes o Docker Swarm
 - dashboards Grafana listos para plataforma y negocio
 - Alertmanager, enrutamiento de notificaciones y observabilidad operativa de produccion
+- compensacion completa de sagas
 - backups programados
 - almacenamiento off-site
 - cifrado de backups
