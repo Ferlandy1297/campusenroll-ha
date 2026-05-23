@@ -9,6 +9,12 @@
 - `docs/course-audit/HA_TERMINOLOGY_AND_LIMITS.md`
 - `docs/course-audit/S27_EVIDENCE_SUMMARY.md`
 
+## S33 Final Readiness Docs
+
+- `docs/final/FINAL_REGRESSION_CHECKLIST.md`
+- `docs/final/FINAL_EVIDENCE_PACKAGE.md`
+- `docs/final/FINAL_PRESENTATION_READINESS.md`
+
 | Course Topic | What the team should show | Exact repo evidence or command | What to say honestly |
 | --- | --- | --- | --- |
 | Database as Code | Open `db/schema.sql` and `db/data.sql`. Show that the schema and seed are versioned. | `Get-Content .\\db\\schema.sql -TotalCount 80`; `Get-Content .\\db\\data.sql -TotalCount 80`; `Get-Content .\\docs\\course-audit\\README.md` | The authoritative relational model is in `db/`, even though some services still use mixed Hibernate DDL behavior locally. |

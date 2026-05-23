@@ -17,7 +17,7 @@ CampusEnroll HA ya tiene una base funcional para:
 - `postman/` como cliente operativo actual
 - `infra/k6/` como paquete de validacion final
 
-La entrega actual ya no depende solo del flujo local con Maven. El repo soporta dos modos de ejecucion sin reemplazar el workflow existente.
+La entrega actual ya no depende solo del flujo local con Maven. El repo ahora soporta varias capas de ejecucion sin reemplazar el workflow existente.
 
 S22 agrega una capa practica de backup y recuperacion ante desastres para PostgreSQL. Esto fortalece la continuidad operativa local y la narrativa de HA readiness sin convertir el proyecto en una plataforma productiva de alta disponibilidad.
 
@@ -26,6 +26,8 @@ S25 agrega una capa de failover y switchover a nivel de aplicacion para `course-
 S31 agrega una compensacion basica de saga por choreografia: `billing-service` sigue publicando `BillingStatusChangedEvent` mediante el outbox transaccional de S30 y ahora `enrollment-service` consume `billing.status.changed` para cancelar la inscripcion relacionada cuando el cobro pasa a `CANCELLED`.
 
 S32 agrega un demo aislado de replicacion streaming de PostgreSQL con primario, read replica, verificacion de replica en modo solo lectura y failover manual por promocion de la replica. Este demo no reemplaza el `campusenroll-postgres` principal ni reconfigura los microservicios hacia la topologia replicada.
+
+S33 no agrega nuevas capacidades de runtime. Consolida la limpieza documental final, corrige referencias de puertos entre el stack principal y el demo S32, y agrega un paquete unico de regresion, evidencia y readiness para la presentacion final.
 
 Alcance honesto:
 
@@ -128,7 +130,8 @@ Importante:
 
 - este demo no reemplaza el PostgreSQL principal usado por `docker-compose.yml`
 - los microservicios no se conectan automaticamente a esta topologia
-- si `campusenroll-postgres` ya esta usando `56432`, liberar ese puerto antes de iniciar el demo S32
+- el PostgreSQL principal del stack sigue usando el puerto definido en `.env`, actualmente `55432`
+- el demo S32 usa `56432` y `56433`, por lo que no comparte esos puertos con el stack principal
 - esto demuestra replicacion streaming, read replica y failover manual, no failover automatico
 - esto no es Patroni, repmgr, pg_auto_failover, Kubernetes ni un cluster productivo multinodo
 - guia detallada: [PostgreSQL Replication / Failover Demo](docs/ha/POSTGRES_REPLICATION_FAILOVER_DEMO.md)
@@ -255,6 +258,9 @@ Mensaje honesto:
 - `docs/ha/APPLICATION_FAILOVER_SWITCHOVER_DEMO.md`
 - `docs/ha/POSTGRES_REPLICATION_FAILOVER_DEMO.md`
 - `docs/final/CHECKPOINT_1_PDF_READY.md`
+- `docs/final/FINAL_REGRESSION_CHECKLIST.md`
+- `docs/final/FINAL_EVIDENCE_PACKAGE.md`
+- `docs/final/FINAL_PRESENTATION_READINESS.md`
 - `docs/final/EVIDENCE_PLACEHOLDERS.md`
 - `infra/backups/DISASTER_RECOVERY_RUNBOOK.md`
 - `infra/postgres-ha/README.md`

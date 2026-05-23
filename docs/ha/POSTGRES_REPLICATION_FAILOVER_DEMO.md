@@ -54,13 +54,13 @@ Tabla de evidencia:
 
 ## Boundary importante
 
-El stack principal de CampusEnroll tambien usa `56432` para `campusenroll-postgres`.
+El stack principal de CampusEnroll sigue usando el puerto definido en `.env`, actualmente `55432`, para `campusenroll-postgres`.
 
 Por eso:
 
 - este demo se inicia por separado
 - los microservicios no se apuntan a esta replica ni al primario del demo
-- si el contenedor `campusenroll-postgres` ya esta activo, debe liberarse `56432` antes de iniciar S32
+- el demo S32 usa `56432` y `56433`, por lo que no necesita reemplazar ni apagar el PostgreSQL principal solo por puertos
 
 Mensaje exacto para defensa:
 
@@ -85,13 +85,9 @@ Mensaje exacto para defensa:
 docker compose -f docker-compose.db-ha-demo.yml config
 ```
 
-### 2. Liberar `56432` si el PostgreSQL principal del stack ya esta activo
+### 2. Mantener clara la separacion con el stack principal
 
-```powershell
-docker stop campusenroll-postgres
-```
-
-Este paso solo aplica si `campusenroll-postgres` ya esta corriendo. El demo S32 no modifica `docker-compose.yml`; solo necesita el puerto libre.
+No hace falta detener `campusenroll-postgres` solo por puertos. El stack principal sigue en `55432` y el demo S32 usa `56432` o `56433`.
 
 ### 3. Iniciar el demo
 

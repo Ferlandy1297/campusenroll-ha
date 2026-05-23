@@ -6,8 +6,8 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 - Curso y seccion: `[Completar]`
 - Proyecto: CampusEnroll HA
-- Segmento: S32
-- Rol responsable: PostgreSQL replication and database HA demo owner
+- Segmento: S33
+- Rol responsable: final cleanup and evidence package owner
 - Docente: `[Completar]`
 - Integrantes: `[Completar]`
 - Fecha: `[Completar]`
@@ -17,7 +17,7 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 ## 2. Resumen ejecutivo
 
-CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completo ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness. S22 agrega una capa practica de backup, restore y recuperacion ante desastres para PostgreSQL. S28 activa reglas reales de Prometheus, S29 agrega `Idempotency-Key` para escrituras criticas seleccionadas, S30 agrega outbox transaccional para los servicios productores de eventos, S31 agrega una compensacion basica de saga por choreografia sobre RabbitMQ y S32 agrega un demo aislado de replicacion streaming de PostgreSQL con primary, read replica y failover manual por promocion.
+CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completo ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness. S22 agrega una capa practica de backup, restore y recuperacion ante desastres para PostgreSQL. S28 activa reglas reales de Prometheus, S29 agrega `Idempotency-Key` para escrituras criticas seleccionadas, S30 agrega outbox transaccional para los servicios productores de eventos, S31 agrega una compensacion basica de saga por choreografia sobre RabbitMQ, S32 agrega un demo aislado de replicacion streaming de PostgreSQL con primary, read replica y failover manual por promocion, y S33 consolida la limpieza documental final con un paquete unico de regresion, evidencia y readiness.
 
 Mensaje central:
 
@@ -44,6 +44,7 @@ Mensaje central:
 - `infra/backups/DISASTER_RECOVERY_RUNBOOK.md` documenta perdida de datos, corrupcion de volumen y reconstruccion del entorno local.
 - `docker-compose.db-ha-demo.yml` agrega un primary y una read replica PostgreSQL para un demo aislado de streaming replication.
 - `infra/postgres-ha/` agrega scripts PowerShell y assets de inicializacion para verificar replica, promover la replica y reiniciar el demo S32.
+- `docs/final/FINAL_REGRESSION_CHECKLIST.md`, `FINAL_EVIDENCE_PACKAGE.md` y `FINAL_PRESENTATION_READINESS.md` consolidan la validacion y la defensa final.
 - `postman/` sigue siendo el cliente operativo actual.
 - `infra/k6/` sigue siendo el paquete de validacion final.
 
@@ -69,17 +70,17 @@ Mensaje central:
 - dashboards Grafana listos para plataforma y negocio
 - Alertmanager, notificaciones externas y gobierno operativo de alertas
 
-## 3. Objetivo tecnico de S32
+## 3. Objetivo tecnico de S33
 
-El objetivo de este segmento no fue rehacer la arquitectura ni reemplazar el flujo Maven existente. El objetivo fue agregar una capa aislada y demostrable de replicacion PostgreSQL con cambios pequenos y revisables:
+El objetivo de este segmento no fue rehacer la arquitectura ni reemplazar el flujo Maven existente. El objetivo fue cerrar la entrega con una limpieza documental final y con un paquete unico de regresion, evidencia y readiness, preservando sin cambios de runtime lo ya implementado hasta S32:
 
 1. preservar el PostgreSQL centralizado que usan los microservicios actuales
-2. evitar cambios en backend Java, `db/schema.sql`, HAProxy, backups y alertas existentes
-3. agregar un `docker-compose.db-ha-demo.yml` separado del stack principal
-4. demostrar un PostgreSQL primary y una read replica con streaming replication
-5. hacer visible la replicacion con una tabla simple `replication_probe`
-6. demostrar failover manual promoviendo la replica
-7. documentar switchover manual, limites operativos y diferencia frente a HA productiva automatica
+2. preservar las funciones S28, S29, S30, S31 y S32 sin agregar nuevas capacidades de runtime
+3. corregir referencias de puertos para distinguir el stack principal en `55432` del demo aislado S32 en `56432` y `56433`
+4. consolidar la validacion tecnica final en un solo checklist operativo
+5. consolidar la evidencia final en un solo mapa de capturas y salidas
+6. consolidar el lenguaje honesto de defensa para evitar sobreclaims en la presentacion
+7. dejar claro que S33 es documentacion y evidencia, no una nueva capa de infraestructura ni una nueva feature de backend
 
 ## 4. Arquitectura operativa actual
 
@@ -147,7 +148,7 @@ Puertos operativos relevantes:
 
 | Recurso | Puerto local | Nota |
 | --- | --- | --- |
-| PostgreSQL | `56432` | definido en `.env` actual |
+| PostgreSQL | `55432` | definido en `.env` actual para el stack principal |
 | Redis | `6379` | por defecto |
 | RabbitMQ AMQP | `5672` | por defecto |
 | RabbitMQ UI | `15672` | `guest/guest` |
@@ -549,6 +550,7 @@ Interpretacion correcta:
 
 - `campusenroll-pg-primary` debe devolver `pg_is_in_recovery() = false`
 - `campusenroll-pg-replica` debe devolver `pg_is_in_recovery() = true` antes de la promocion
+- el demo S32 usa `56432` y `56433`, mientras el stack principal sigue en `55432`
 - `pg_stat_replication` debe mostrar la replica en `streaming`
 - la fila insertada en el primary debe aparecer en la replica
 - la replica debe rechazar escrituras antes de `promote`

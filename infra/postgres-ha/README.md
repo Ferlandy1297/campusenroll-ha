@@ -24,13 +24,14 @@ This folder contains the isolated PostgreSQL streaming replication demo added in
 
 ## Important Boundary
 
-The main application database in `docker-compose.yml` also uses host port `56432`.
+The main application database in `docker-compose.yml` uses the `.env` host port, currently `55432`.
 
 This means:
 
 - the S32 demo is isolated and started separately
 - backend services are not switched to the demo primary or replica
-- if `campusenroll-postgres` is already running, free host port `56432` before starting the S32 demo
+- the S32 demo uses `56432` and `56433`, so it does not share the main stack host port
+- the canonical S33 validation path uses the explicit `docker compose -f docker-compose.db-ha-demo.yml ...` commands documented under `docs/ha/POSTGRES_REPLICATION_FAILOVER_DEMO.md`
 
 ## Files
 
