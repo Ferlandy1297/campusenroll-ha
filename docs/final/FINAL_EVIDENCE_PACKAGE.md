@@ -1,4 +1,4 @@
-# Final Evidence Package - S33
+# Final Evidence Package - S34
 
 This file lists the screenshots, terminal captures, and saved outputs that should exist before the final presentation.
 
@@ -21,14 +21,17 @@ This file lists the screenshots, terminal captures, and saved outputs that shoul
 ## 3. DBeaver schema and tables
 
 - capture the DBeaver tree showing the `campusenroll` connection
+- capture the table list after a clean Docker startup so it is clear the main stack loaded the authoritative `db/schema.sql`
 - include the visible list of key tables:
   - `students`
   - `courses`
   - `sections`
+  - `schedule_blocks`
   - `enrollments`
   - `billings`
   - `idempotency_records`
   - `outbox_events`
+- if possible, also capture `\d billings` or the DBeaver table definition to prove `billings` exists without manual post-start SQL loading
 
 ## 4. RabbitMQ exchange, queues, and bindings
 

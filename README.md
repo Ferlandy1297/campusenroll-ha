@@ -11,7 +11,7 @@ CampusEnroll HA ya tiene una base funcional para:
 - `Idempotency-Key` real en `POST /api/enrollments` y `POST /api/billings`
 - `notification` como consumidor RabbitMQ para evidencia y logs
 - metricas reales Actuator/Prometheus en los cinco microservicios
-- `db/schema.sql` y `db/data.sql` para carga determinista de PostgreSQL
+- `db/schema.sql` y `db/data.sql` como modelo relacional y seed autoritativos de PostgreSQL
 - `infra/backups/` con scripts PowerShell para backup, restore y verificacion de PostgreSQL
 - `docker-compose.ha-demo.yml` e `infra/load-balancer/` para failover y switchover de aplicacion en `course-service`
 - `postman/` como cliente operativo actual
@@ -28,6 +28,8 @@ S31 agrega una compensacion basica de saga por choreografia: `billing-service` s
 S32 agrega un demo aislado de replicacion streaming de PostgreSQL con primario, read replica, verificacion de replica en modo solo lectura y failover manual por promocion de la replica. Este demo no reemplaza el `campusenroll-postgres` principal ni reconfigura los microservicios hacia la topologia replicada.
 
 S33 no agrega nuevas capacidades de runtime. Consolida la limpieza documental final, corrige referencias de puertos entre el stack principal y el demo S32, y agrega un paquete unico de regresion, evidencia y readiness para la presentacion final.
+
+S34 corrige el bootstrap final de regresion: el `campusenroll-postgres` principal ahora aplica `db/schema.sql` y `db/data.sql` automaticamente sobre un volumen nuevo para que tablas como `billings`, `idempotency_records` y `outbox_events` existan desde el arranque limpio. Tambien deja el demo S32 protegido para checkouts Windows manteniendo los scripts shell de `infra/postgres-ha` con line endings LF seguros para Docker y Linux.
 
 Alcance honesto:
 
@@ -75,7 +77,8 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml ps
 Importante:
 
 - este modo es `HA-ready` y demostrable para la entrega, no alta disponibilidad productiva
-- la primera ejecucion sobre un volumen PostgreSQL nuevo todavia requiere cargar `db/schema.sql` y `db/data.sql`
+- sobre un volumen PostgreSQL nuevo, el contenedor principal aplica automaticamente `db/schema.sql` y `db/data.sql` desde `/docker-entrypoint-initdb.d`
+- `billings`, `idempotency_records` y `outbox_events` deben existir desde el arranque limpio sin depender de `ddl-auto`
 - el workflow con Maven local sigue siendo valido y no fue removido
 - Prometheus scrapea `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` por nombre interno Docker cuando este modo esta activo
 - si Prometheus ya estaba corriendo antes del cambio de configuracion, reinicialo una vez con `docker compose -f docker-compose.yml -f docker-compose.apps.yml restart prometheus`
@@ -140,7 +143,7 @@ Importante:
 
 1. Confirmar `.env`.
 2. Levantar infraestructura compartida o el stack completo.
-3. Cargar base de datos demo si el volumen es nuevo.
+3. En un volumen PostgreSQL nuevo, esperar el bootstrap automatico desde `db/schema.sql` y `db/data.sql`.
 4. Elegir uno de estos caminos:
    - ejecutar servicios localmente con `mvn spring-boot:run`
    - ejecutar servicios con `docker-compose.apps.yml`
@@ -149,11 +152,11 @@ Importante:
 7. Ejecutar Postman, Redis, RabbitMQ, k6 y la evidencia final.
 8. Ejecutar backup/restore de PostgreSQL cuando se necesite preservar o recuperar el dataset local.
 
-Carga de base de datos:
+Verificacion del bootstrap de base de datos:
 
 ```powershell
-Get-Content -Raw .\db\schema.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
-Get-Content -Raw .\db\data.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d billings"
 ```
 
 Health checks:

@@ -1,4 +1,4 @@
-# Final Regression Checklist - S33
+# Final Regression Checklist - S34
 
 This is the single operational checklist for final validation before the presentation.
 
@@ -21,7 +21,9 @@ Expected:
 Commands:
 
 ```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml down -v --remove-orphans
 docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml up -d --build
+Start-Sleep -Seconds 90
 docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml ps
 ```
 
@@ -31,20 +33,20 @@ Expected:
 - `student-service`, `course-service`, `course-service-replica`, `enrollment-service`, `billing-service`, `notification`, and `haproxy` are `Up`
 - health-enabled containers show `healthy` after startup settles
 
-## 3. Deterministic database load
+## 3. Main schema bootstrap verification
 
 Commands:
 
 ```powershell
-Get-Content -Raw .\db\schema.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
-Get-Content -Raw .\db\data.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
-docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\dt"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d billings"
 ```
 
 Expected:
 
-- schema and seed load without `ERROR`
-- `\dt` lists the expected business tables, including `enrollments`, `billings`, `idempotency_records`, and `outbox_events`
+- the clean startup already loaded `db/schema.sql` and `db/data.sql` through `/docker-entrypoint-initdb.d`
+- table list includes `academic_periods`, `billings`, `courses`, `enrollments`, `idempotency_records`, `outbox_events`, `schedule_blocks`, `sections`, and `students`
+- `\d billings` succeeds and shows the authoritative billing columns and constraints instead of `relation "billings" does not exist`
 
 ## 4. Five service health checks
 
@@ -69,14 +71,14 @@ Commands:
 
 ```powershell
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT current_database(), current_user;"
-docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT COUNT(*) AS students FROM students; SELECT COUNT(*) AS sections FROM sections;"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT COUNT(*) AS students FROM students; SELECT COUNT(*) AS sections FROM sections; SELECT COUNT(*) AS billings FROM billings;"
 ```
 
 Expected:
 
 - `current_database` is `campusenroll`
 - `current_user` is `campus`
-- table counts return nonzero seeded values
+- table counts return nonzero seeded values, including `billings`
 
 ## 6. Redis cache verification
 
@@ -256,13 +258,16 @@ Expected:
 Commands:
 
 ```powershell
+docker compose -f docker-compose.db-ha-demo.yml down -v --remove-orphans
 docker compose -f docker-compose.db-ha-demo.yml config
 docker compose -f docker-compose.db-ha-demo.yml up -d --build
+Start-Sleep -Seconds 45
 docker compose -f docker-compose.db-ha-demo.yml ps
 docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"
 docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"
 docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT application_name, state, sync_state FROM pg_stat_replication;"
 docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT status, conninfo FROM pg_stat_wal_receiver;"
+docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT COUNT(*) FROM replication_probe;"
 docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "INSERT INTO replication_probe(label) VALUES ('replicated-from-primary');"
 docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT id, label, created_at FROM replication_probe ORDER BY id DESC LIMIT 5;"
 docker stop campusenroll-pg-primary
@@ -273,9 +278,11 @@ docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c
 
 Expected:
 
+- checkout keeps `infra/postgres-ha/*.sh` in LF so the Linux containers can execute them reliably
 - primary returns `false` for `pg_is_in_recovery()`
 - replica returns `true` before promotion
 - replication state is normally `streaming`
+- `replication_probe` already exists on the primary before the insert
 - the primary write appears on the replica
 - replica returns `false` after promotion
 - promoted replica accepts writes
@@ -283,7 +290,7 @@ Expected:
 Cleanup:
 
 ```powershell
-docker compose -f docker-compose.db-ha-demo.yml down -v
+docker compose -f docker-compose.db-ha-demo.yml down -v --remove-orphans
 ```
 
 ## 16. k6 smoke test
@@ -319,7 +326,7 @@ Expected:
 Manual checklist:
 
 - connect to `localhost:55432`, database `campusenroll`, user `campus`
-- expand schemas and confirm `students`, `courses`, `sections`, `enrollments`, `billings`, `idempotency_records`, and `outbox_events`
+- expand schemas and confirm `students`, `courses`, `sections`, `schedule_blocks`, `enrollments`, `billings`, `idempotency_records`, and `outbox_events`
 - inspect `enrollments` and confirm `status` values such as `ENROLLED` and `CANCELLED`
 - inspect `idempotency_records` and confirm the final demo keys are visible
 - inspect `outbox_events` and confirm recent `EnrollmentCreatedEvent` and `BillingStatusChangedEvent` rows

@@ -15,6 +15,7 @@ chown -R postgres:postgres "$PGDATA_DIR"
 chmod 700 "$PGDATA_DIR"
 
 if [ ! -s "$PGDATA_DIR/PG_VERSION" ]; then
+  # Bootstrap the standby from the primary only on an empty replica volume.
   echo "Waiting for primary PostgreSQL at ${PRIMARY_HOST}:${PRIMARY_PORT}..."
   until gosu postgres pg_isready -h "$PRIMARY_HOST" -p "$PRIMARY_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; do
     sleep 2

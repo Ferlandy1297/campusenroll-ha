@@ -77,6 +77,11 @@ Mensaje exacto para defensa:
 - `infra/postgres-ha/reset-postgres-ha-demo.ps1`
 - `infra/postgres-ha/README.md`
 
+Compatibilidad de checkout:
+
+- `.gitattributes` fija `*.sh` con `eol=lf`
+- esto evita que `infra/postgres-ha/primary/init/01-configure-primary.sh` y `infra/postgres-ha/replica/entrypoint.sh` fallen por CRLF cuando Docker o Linux los ejecutan desde un checkout Windows
+
 ## Validacion exacta
 
 ### 1. Validar Compose
@@ -92,7 +97,9 @@ No hace falta detener `campusenroll-postgres` solo por puertos. El stack princip
 ### 3. Iniciar el demo
 
 ```powershell
+docker compose -f docker-compose.db-ha-demo.yml down -v --remove-orphans
 docker compose -f docker-compose.db-ha-demo.yml up -d --build
+Start-Sleep -Seconds 45
 docker compose -f docker-compose.db-ha-demo.yml ps
 ```
 
@@ -137,13 +144,23 @@ Esperado:
 
 - `status` en `streaming`
 
-### 8. Insertar una fila en el primary
+### 8. Verificar que `replication_probe` existe en el primary
+
+```powershell
+docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT COUNT(*) FROM replication_probe;"
+```
+
+Esperado:
+
+- la consulta funciona sin error
+
+### 9. Insertar una fila en el primary
 
 ```powershell
 docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "INSERT INTO replication_probe(label) VALUES ('replicated-from-primary');"
 ```
 
-### 9. Leer la fila desde la replica
+### 10. Leer la fila desde la replica
 
 ```powershell
 docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT id, label, created_at FROM replication_probe ORDER BY id DESC LIMIT 5;"
@@ -153,7 +170,7 @@ Esperado:
 
 - aparece la fila `replicated-from-primary`
 
-### 10. Demostrar que la replica es read-only antes de promocion
+### 11. Demostrar que la replica es read-only antes de promocion
 
 ```powershell
 docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "INSERT INTO replication_probe(label) VALUES ('should-fail-on-replica');"
@@ -163,14 +180,14 @@ Esperado:
 
 - error de solo lectura porque la replica sigue en recovery
 
-### 11. Failover manual
+### 12. Failover manual
 
 ```powershell
 docker stop campusenroll-pg-primary
 docker exec -u postgres campusenroll-pg-replica pg_ctl -D /var/lib/postgresql/data promote
 ```
 
-### 12. Verificar promocion de la replica
+### 13. Verificar promocion de la replica
 
 ```powershell
 docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"
@@ -180,7 +197,7 @@ Esperado:
 
 - `false`
 
-### 13. Verificar escrituras sobre la replica promovida
+### 14. Verificar escrituras sobre la replica promovida
 
 ```powershell
 docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "INSERT INTO replication_probe(label) VALUES ('written-after-promotion'); SELECT id, label, created_at FROM replication_probe ORDER BY id DESC LIMIT 5;"
@@ -190,10 +207,10 @@ Esperado:
 
 - la insercion funciona
 
-### 14. Limpieza
+### 15. Limpieza
 
 ```powershell
-docker compose -f docker-compose.db-ha-demo.yml down -v
+docker compose -f docker-compose.db-ha-demo.yml down -v --remove-orphans
 ```
 
 ## Switchover manual documentado
