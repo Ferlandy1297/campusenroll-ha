@@ -11,6 +11,7 @@
 - k6 coverage is strong. The repo includes smoke, exact-load, and concurrent enrollment scripts plus a manual failure observation guide.
 - Backup and restore coverage is strong. The PowerShell scripts plus the disaster recovery runbook give the project a concrete continuity story for PostgreSQL.
 - HAProxy application failover coverage is strong. `course-service` has a local primary and replica plus scripted failover and switchover demos.
+- PostgreSQL replication coverage is now materially better. S32 adds an isolated primary plus replica demo with streaming replication, read-only verification, and manual promotion.
 
 ## B. Covered but needs better explanation or documentation
 
@@ -19,7 +20,7 @@
 - Idempotency wording now needs a narrower explanation. S29 implements `Idempotency-Key` for selected critical endpoints, and S30 adds a transactional outbox for producer reliability, but the repo still does not implement full endpoint coverage.
 - Saga versus choreography still needs careful explanation. RabbitMQ is real in the repo, and S31 adds basic compensation through choreography, but the current flow is still not central orchestration or a full production saga engine.
 - RPO and RTO are documented in the disaster recovery runbook, but the team still needs to explain them clearly as local academic targets, not automated production guarantees.
-- Academic HA versus production HA needs constant discipline. The project demonstrates application-level continuity for `course-service`, not database replication, cluster-wide failover, or platform-grade HA.
+- Academic HA versus production HA still needs constant discipline. The project now demonstrates application-level continuity for `course-service` plus an isolated manual PostgreSQL replication and failover demo, but it still does not implement automatic database HA or platform-grade failover.
 - Legacy document drift is real. Older S00 planning files and some diagrams still describe Redis, RabbitMQ, Prometheus, Grafana, and the gateway as planned rather than current or partially current.
 
 ## C. Possible low-risk improvements before final delivery
@@ -34,7 +35,7 @@
 
 ## D. Production-level upgrades not recommended to implement now
 
-- Do not add PostgreSQL streaming replication or automatic database failover now. That is a different risk profile than the rest of the repo and would require new operational guarantees.
+- Do not widen the new S32 database demo into automatic failover, integrated client rerouting, or production claims now. That would create a new operational surface the repo still does not manage.
 - Do not widen the new S31 compensation path into a full saga engine, DLQ handling, or exactly-once messaging guarantees now. That would widen the backend scope far beyond an audit-alignment pass.
 - Do not introduce broad partitioning or anti-hotspot redesign now. The current data size and academic workload do not justify the migration risk.
 - Do not attempt a Kubernetes migration, Docker Swarm migration, or true multi-node deployment now. The current Compose-based story is already presentation-worthy and much safer.
@@ -42,6 +43,6 @@
 
 ## Practical Conclusion
 
-CampusEnroll HA is already strong in the topics that matter most for a Database II final review: centralized relational design, concurrency-aware service logic, Redis and RabbitMQ complements, observability foundations, stress testing, backup and restore, and application-level failover.
+CampusEnroll HA is already strong in the topics that matter most for a Database II final review: centralized relational design, concurrency-aware service logic, Redis and RabbitMQ complements, observability foundations, stress testing, backup and restore, application-level failover, and now an isolated PostgreSQL replication demo.
 
-The main missing layer is not a big code rewrite. It is explanatory precision: a tighter bridge between course vocabulary and what the repo actually implements today.
+The main missing layer is no longer "whether replication exists at all." It is explanatory precision: a tighter bridge between course vocabulary and what the repo actually implements today versus what still belongs to production-grade HA.

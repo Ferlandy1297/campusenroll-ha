@@ -1,4 +1,4 @@
-# Demo Script - Entrega Final S31
+# Demo Script - Entrega Final S32
 
 ## Objetivo
 
@@ -6,7 +6,7 @@ Exponer en 7 a 9 minutos el estado real de CampusEnroll HA despues de S25, sin s
 
 Mensaje central:
 
-`CampusEnroll HA ya tiene flujo funcional, cache Redis, eventos RabbitMQ, healthchecks, modo Compose HA-ready, metricas Prometheus reales por microservicio, backup/restore local de PostgreSQL, alertas activas en Prometheus, Idempotency-Key real para escrituras criticas, outbox transaccional para los productores de eventos y ahora una compensacion basica por choreografia cuando un billing queda CANCELLED; eso no equivale todavia a alta disponibilidad productiva, a un motor de saga completo ni a failover de base de datos.`
+`CampusEnroll HA ya tiene flujo funcional, cache Redis, eventos RabbitMQ, healthchecks, modo Compose HA-ready, metricas Prometheus reales por microservicio, backup/restore local de PostgreSQL, alertas activas en Prometheus, Idempotency-Key real para escrituras criticas, outbox transaccional para los productores, una compensacion basica por choreografia cuando un billing queda CANCELLED y ahora un demo aislado de replicacion streaming de PostgreSQL con failover manual; eso no equivale todavia a alta disponibilidad productiva, a un motor de saga completo ni a failover automatico de base de datos.`
 
 ## 0. Preparacion previa
 
@@ -27,7 +27,7 @@ Antes de iniciar la demo:
 
 Guion sugerido:
 
-"Este es CampusEnroll HA. La base actual ya permite demostrar estudiantes, catalogo, inscripciones y cobros. S20 agrego el modo Compose para levantar tambien los cinco microservicios Spring Boot con restart policy y healthchecks. S21 completo esa base con metricas Prometheus reales en los cinco servicios. S22 agrega backup, restore y un runbook de recuperacion para PostgreSQL. S25 suma failover y switchover a nivel de aplicacion para course-service usando HAProxy y una replica. S28 activa reglas reales de Prometheus, S29 agrega Idempotency-Key para escrituras criticas, S30 agrega outbox transaccional para los servicios que producen eventos y S31 agrega una compensacion basica por choreografia cuando el billing queda CANCELLED."
+"Este es CampusEnroll HA. La base actual ya permite demostrar estudiantes, catalogo, inscripciones y cobros. S20 agrego el modo Compose para levantar tambien los cinco microservicios Spring Boot con restart policy y healthchecks. S21 completo esa base con metricas Prometheus reales en los cinco servicios. S22 agrega backup, restore y un runbook de recuperacion para PostgreSQL. S25 suma failover y switchover a nivel de aplicacion para course-service usando HAProxy y una replica. S28 activa reglas reales de Prometheus, S29 agrega Idempotency-Key para escrituras criticas, S30 agrega outbox transaccional para los servicios que producen eventos, S31 agrega una compensacion basica por choreografia cuando el billing queda CANCELLED y S32 agrega un demo aislado de PostgreSQL primary plus read replica con failover manual por promocion."
 
 Mostrar:
 
@@ -38,13 +38,14 @@ Mostrar:
 
 Guion sugerido:
 
-"Ahora el repo tiene tres capas claras. El standard mode mantiene `docker-compose.yml` para infraestructura compartida. El HA readiness mode agrega `docker-compose.apps.yml` para contenedorizacion local de los cinco servicios. Y S25 suma `docker-compose.ha-demo.yml` para el demo de continuidad del catalogo con HAProxy."
+"Ahora el repo tiene cuatro capas claras. El standard mode mantiene `docker-compose.yml` para infraestructura compartida. El HA readiness mode agrega `docker-compose.apps.yml` para contenedorizacion local de los cinco servicios. S25 suma `docker-compose.ha-demo.yml` para el demo de continuidad del catalogo con HAProxy. Y S32 agrega `docker-compose.db-ha-demo.yml` para un demo aislado de replicacion PostgreSQL."
 
 Mostrar:
 
 - `docker-compose.yml`
 - `docker-compose.apps.yml`
 - `docker-compose.ha-demo.yml`
+- `docker-compose.db-ha-demo.yml`
 - `docker compose -f docker-compose.yml -f docker-compose.apps.yml ps`
 
 ## 3. Base de datos determinista y verificacion S22 - 1:30 a 2:20
@@ -155,11 +156,37 @@ Puntos a remarcar:
 - ambos `course-service` usan la misma base PostgreSQL centralizada
 - la continuidad se limita al catalogo academico en este segmento
 
-## 9. Backup, restore y cierre honesto - 7:10 a 8:20
+## 9. PostgreSQL replication y failover manual S32 - 7:10 a 8:00
 
 Guion sugerido:
 
-"La evidencia final ya no solo incluye metricas y recuperacion de servicios. Tambien incluye backup manual de PostgreSQL, restore con advertencia visible y un runbook de recuperacion para perdida de datos, corrupcion del volumen o reconstruccion del entorno local. Y ahora queda claro que esa parte es la estrategia de recuperacion de datos, separada del failover de aplicacion que se mostro con HAProxy."
+"S32 no reemplaza la base principal de la aplicacion. Lo que agrega es un demo aislado de database HA con un PostgreSQL primary, una read replica en hot standby, streaming replication visible, lectura desde replica y failover manual promoviendo la replica. Esto mejora la alineacion con el curso, pero no debe venderse como failover automatico."
+
+Mostrar:
+
+- `docker compose -f docker-compose.db-ha-demo.yml config`
+- `docker compose -f docker-compose.db-ha-demo.yml up -d --build`
+- `docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"`
+- `docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"`
+- `docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT application_name, state, sync_state FROM pg_stat_replication;"`
+- `docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "INSERT INTO replication_probe(label) VALUES ('replicated-from-primary');"`
+- `docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT id, label, created_at FROM replication_probe ORDER BY id DESC LIMIT 5;"`
+- `docker stop campusenroll-pg-primary`
+- `docker exec -u postgres campusenroll-pg-replica pg_ctl -D /var/lib/postgresql/data promote`
+- `docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"`
+
+Puntos a remarcar:
+
+- esto si demuestra read replica y failover manual a nivel de base de datos
+- esto no cambia las JDBC de los microservicios
+- el cliente se mueve manualmente al puerto `56433` despues de la promocion
+- esto no es Patroni, repmgr ni pg_auto_failover
+
+## 10. Backup, restore y cierre honesto - 8:00 a 9:00
+
+Guion sugerido:
+
+"La evidencia final ya no solo incluye metricas y recuperacion de servicios. Tambien incluye backup manual de PostgreSQL, restore con advertencia visible y un runbook de recuperacion para perdida de datos, corrupcion del volumen o reconstruccion del entorno local. Y ahora queda claro que esa parte es la estrategia de recuperacion de datos del stack principal, separada tanto del failover de aplicacion con HAProxy como del demo aislado de replicacion y promocion manual de S32."
 
 Mostrar:
 
@@ -174,8 +201,8 @@ Mostrar:
 
 Cierre sugerido:
 
-"En conclusion, CampusEnroll HA ya es demostrable como plataforma local HA-ready: tiene empaquetado por servicio, restart policies, healthchecks, cache Redis, eventos RabbitMQ, outbox transaccional para los productores, una compensacion basica por choreografia para billings cancelados, metricas Prometheus reales, reglas activas de alerting en Prometheus, idempotencia HTTP real para escrituras criticas, activos de validacion y una capa local de backup/restore para PostgreSQL. Lo que sigue pendiente es la alta disponibilidad productiva con replicas, balanceo, un motor de saga completo, automatizacion de backups, almacenamiento off-site, cifrado, Alertmanager, dashboards de negocio, clusters y failover de base de datos."
+"En conclusion, CampusEnroll HA ya es demostrable como plataforma local HA-ready: tiene empaquetado por servicio, restart policies, healthchecks, cache Redis, eventos RabbitMQ, outbox transaccional para los productores, una compensacion basica por choreografia para billings cancelados, metricas Prometheus reales, reglas activas de alerting en Prometheus, idempotencia HTTP real para escrituras criticas, activos de validacion, una capa local de backup/restore para PostgreSQL y ahora un demo aislado de streaming replication con promocion manual de replica. Lo que sigue pendiente es la alta disponibilidad productiva con replicas integradas al runtime, balanceo, automatizacion de failover, un motor de saga completo, automatizacion de backups, almacenamiento off-site, cifrado, Alertmanager, dashboards de negocio y clusters."
 
 Si preguntan por PostgreSQL failover, responder:
 
-"No esta implementado. S25 cubre failover y switchover de la aplicacion course-service a traves de HAProxy. PostgreSQL sigue centralizado y la recuperacion actual del proyecto es backup y restore."
+"Hay dos respuestas distintas. En el stack principal, no esta implementado y la recuperacion actual sigue siendo backup y restore. En S32 existe un demo aislado de replicacion streaming con promocion manual de replica, pero no es failover automatico ni reemplaza la base principal usada por los microservicios."

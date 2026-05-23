@@ -1,0 +1,82 @@
+name: campusenroll-db-ha-demo
+
+services:
+  pg-primary:
+    image: postgres:16
+    container_name: campusenroll-pg-primary
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: campus
+      POSTGRES_PASSWORD: campus
+      POSTGRES_DB: campusenroll_ha_demo
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=trust
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator_demo
+    command:
+      - postgres
+      - -c
+      - listen_addresses=*
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+      - -c
+      - wal_keep_size=128MB
+      - -c
+      - hot_standby=on
+    ports:
+      - "56432:5432"
+    volumes:
+      - campusenroll_pg_primary_data:/var/lib/postgresql/data
+      - ./infra/postgres-ha/primary/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - postgres-ha-net
+
+  pg-replica:
+    image: postgres:16
+    container_name: campusenroll-pg-replica
+    restart: unless-stopped
+    user: "0:0"
+    environment:
+      POSTGRES_USER: campus
+      POSTGRES_PASSWORD: campus
+      POSTGRES_DB: campusenroll_ha_demo
+      PRIMARY_HOST: pg-primary
+      PRIMARY_PORT: 5432
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator_demo
+      REPLICA_APP_NAME: campusenroll-pg-replica
+      PGDATA: /var/lib/postgresql/data
+    entrypoint: ["/bin/bash", "/scripts/entrypoint.sh"]
+    depends_on:
+      pg-primary:
+        condition: service_healthy
+    ports:
+      - "56433:5432"
+    volumes:
+      - campusenroll_pg_replica_data:/var/lib/postgresql/data
+      - ./infra/postgres-ha/replica:/scripts:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    networks:
+      - postgres-ha-net
+
+networks:
+  postgres-ha-net:
+    driver: bridge
+
+volumes:
+  campusenroll_pg_primary_data:
+  campusenroll_pg_replica_data:

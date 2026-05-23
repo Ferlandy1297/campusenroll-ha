@@ -73,6 +73,7 @@ The current repository contains working, repo-backed implementations for:
 - k6 smoke, exact-load, and concurrent enrollment scripts
 - manual PostgreSQL backup and restore
 - local application failover and switchover for `course-service`
+- isolated PostgreSQL streaming replication plus manual failover demo for presentation-safe database HA coverage
 
 ## What Is Documented But Not Fully Implemented
 
@@ -85,7 +86,7 @@ Several course topics are present only as explanation, planning, or future recom
 - DCL role/grant scripts
 - EXPLAIN, BUFFERS, and CPU-vs-I/O evidence packages for current queries
 - full SLO governance, Alertmanager routing, and production-grade dashboarding
-- PostgreSQL replication, read replicas, and database failover
+- automatic PostgreSQL failover and application-integrated read routing
 
 ## What Should Stay Future Production Work
 
@@ -104,6 +105,7 @@ The following topics belong in a future production roadmap, not in a last-minute
 - Centralized PostgreSQL is not a weakness in this audit. It is aligned with the course focus and the repo's current academic scope.
 - Application failover is not the same as database failover.
 - Backup and restore are not the same as automatic failover.
+- The S32 PostgreSQL replication demo is isolated from the main application stack and must not be presented as full production HA.
 - RabbitMQ event flow here is closer to lightweight choreography than to a complete saga platform.
 - Grafana is available infrastructure, and Prometheus alert rules are now implemented, but Alertmanager routing and production-complete dashboards are still incomplete.
 - Older S00 and early-planning files still exist in the repo. They are useful as history, but they are not authoritative evidence of the current runtime state.
