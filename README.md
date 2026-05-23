@@ -25,6 +25,8 @@ S25 agrega una capa de failover y switchover a nivel de aplicacion para `course-
 
 S31 agrega una compensacion basica de saga por choreografia: `billing-service` sigue publicando `BillingStatusChangedEvent` mediante el outbox transaccional de S30 y ahora `enrollment-service` consume `billing.status.changed` para cancelar la inscripcion relacionada cuando el cobro pasa a `CANCELLED`.
 
+S32 agrega un demo aislado de replicacion streaming de PostgreSQL con primario, read replica, verificacion de replica en modo solo lectura y failover manual por promocion de la replica. Este demo no reemplaza el `campusenroll-postgres` principal ni reconfigura los microservicios hacia la topologia replicada.
+
 Alcance honesto:
 
 - backend, base de datos, microservicios, observabilidad y recuperacion
@@ -103,6 +105,34 @@ Importante:
 - recuperacion de base de datos sigue en `infra/backups/`
 - guia detallada: [Application Failover / Switchover Demo](docs/ha/APPLICATION_FAILOVER_SWITCHOVER_DEMO.md)
 
+### 4. PostgreSQL replication / manual database failover demo
+
+`docker-compose.db-ha-demo.yml` agrega una capa separada y aislada para mostrar continuidad a nivel de base de datos:
+
+- `campusenroll-pg-primary` en `localhost:56432`
+- `campusenroll-pg-replica` en `localhost:56433`
+- replicacion streaming con `pg_basebackup -R`
+- tabla `replication_probe` para evidencia visible
+- failover manual promoviendo la replica
+- switchover manual documentado como procedimiento operativo
+
+Comandos:
+
+```powershell
+docker compose -f docker-compose.db-ha-demo.yml config
+docker compose -f docker-compose.db-ha-demo.yml up -d --build
+docker compose -f docker-compose.db-ha-demo.yml ps
+```
+
+Importante:
+
+- este demo no reemplaza el PostgreSQL principal usado por `docker-compose.yml`
+- los microservicios no se conectan automaticamente a esta topologia
+- si `campusenroll-postgres` ya esta usando `56432`, liberar ese puerto antes de iniciar el demo S32
+- esto demuestra replicacion streaming, read replica y failover manual, no failover automatico
+- esto no es Patroni, repmgr, pg_auto_failover, Kubernetes ni un cluster productivo multinodo
+- guia detallada: [PostgreSQL Replication / Failover Demo](docs/ha/POSTGRES_REPLICATION_FAILOVER_DEMO.md)
+
 ## Flujo local recomendado
 
 1. Confirmar `.env`.
@@ -180,6 +210,8 @@ Mensaje honesto:
 - RabbitMQ real para publicacion asincrona, evidencia y compensacion basica por eventos
 - cola `enrollment.compensation.events` enlazada a `billing.status.changed` para que `enrollment-service` reaccione a cobros `CANCELLED`
 - failover y switchover a nivel de aplicacion para `course-service` usando health checks HTTP en HAProxy
+- `docker-compose.db-ha-demo.yml` con un primario PostgreSQL y una read replica aislada para demostracion local de streaming replication
+- promocion manual de la replica PostgreSQL para demostrar failover y switchover operativos a nivel de base de datos
 - backup manual de PostgreSQL con `infra/backups/backup-postgres.ps1`
 - restore manual de PostgreSQL con `infra/backups/restore-postgres.ps1`
 - verificacion de base con `infra/backups/verify-database.ps1`
@@ -192,7 +224,9 @@ Mensaje honesto:
 
 - cluster multinodo real
 - failover equivalente para `student-service`, `enrollment-service`, `billing-service` y `notification`
-- replicacion o failover de PostgreSQL
+- automatizacion de failover de PostgreSQL con eleccion de lider, fencing y reroute de clientes
+- read routing integrado desde los microservicios hacia replicas PostgreSQL
+- Patroni, repmgr, pg_auto_failover o un servicio administrado equivalente para HA real de base de datos
 - Redis cluster
 - RabbitMQ cluster
 - entrypoint unico para todos los microservicios detras del balanceador
@@ -219,9 +253,11 @@ Mensaje honesto:
 - `docs/demo/DEMO_COMMANDS.md`
 - `docs/demo/EVIDENCE_CHECKLIST.md`
 - `docs/ha/APPLICATION_FAILOVER_SWITCHOVER_DEMO.md`
+- `docs/ha/POSTGRES_REPLICATION_FAILOVER_DEMO.md`
 - `docs/final/CHECKPOINT_1_PDF_READY.md`
 - `docs/final/EVIDENCE_PLACEHOLDERS.md`
 - `infra/backups/DISASTER_RECOVERY_RUNBOOK.md`
+- `infra/postgres-ha/README.md`
 - `infra/k6/README.md`
 
 ## Course Alignment Audit

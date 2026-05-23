@@ -6,6 +6,8 @@
 
 - `APPLICATION_FAILOVER_SWITCHOVER_DEMO.md`
   - main explanation of the HAProxy layer, startup command, demo flow, and current scope
+- `POSTGRES_REPLICATION_FAILOVER_DEMO.md`
+  - isolated PostgreSQL primary or replica demo, streaming replication checks, manual failover, and manual switchover wording
 - `PRESENTATION_QA.md`
   - short answers for common presentation or viva questions
 
@@ -13,5 +15,6 @@
 
 - CampusEnroll HA now demonstrates application-level failover and planned switchover for `course-service`.
 - The demo uses HAProxy plus `course-service-replica`.
-- PostgreSQL remains centralized by academic requirement.
-- PostgreSQL failover is not implemented; recovery still depends on backup and restore.
+- PostgreSQL still remains centralized for the main application stack.
+- S32 now adds a separate PostgreSQL streaming replication demo with manual replica promotion.
+- Automatic PostgreSQL failover is still not implemented; backup and restore remain the main data recovery layer for the application stack.

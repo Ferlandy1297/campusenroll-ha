@@ -1,4 +1,4 @@
-# Demo Commands - PowerShell - S31
+# Demo Commands - PowerShell - S32
 
 ## 0. Compilar y probar los servicios afectados por S31
 
@@ -15,9 +15,10 @@ Get-Content .\.env
 
 Notas:
 
-- El `.env` actual usa `POSTGRES_PORT=55432`.
+- El `.env` actual usa `POSTGRES_PORT=56432`.
 - Si cambias a `5432`, las URLs JDBC del modo Maven deben usar ese mismo puerto.
 - Frontend sigue fuera de alcance; Postman es el cliente operativo actual.
+- El demo aislado S32 tambien usa `56432` para su PostgreSQL primary. No debe levantarse al mismo tiempo que `campusenroll-postgres` si ese contenedor ya esta ocupando el puerto.
 
 ## 2. HA readiness mode: levantar stack completo
 
@@ -85,7 +86,7 @@ Abrir una terminal PowerShell por servicio.
 
 ```powershell
 Set-Location .\backend\student-service
-$env:STUDENT_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
+$env:STUDENT_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:56432/campusenroll'
 mvn spring-boot:run
 ```
 
@@ -93,7 +94,7 @@ mvn spring-boot:run
 
 ```powershell
 Set-Location .\backend\course-service
-$env:COURSE_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
+$env:COURSE_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:56432/campusenroll'
 mvn spring-boot:run
 ```
 
@@ -101,7 +102,7 @@ mvn spring-boot:run
 
 ```powershell
 Set-Location .\backend\enrollment-service
-$env:ENROLLMENT_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
+$env:ENROLLMENT_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:56432/campusenroll'
 mvn spring-boot:run
 ```
 
@@ -109,7 +110,7 @@ mvn spring-boot:run
 
 ```powershell
 Set-Location .\backend\billing-service
-$env:BILLING_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
+$env:BILLING_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:56432/campusenroll'
 mvn spring-boot:run
 ```
 
@@ -605,3 +606,88 @@ Mensaje exacto para la defensa:
 - esto si es failover y switchover a nivel de aplicacion para `course-service`
 - esto no es failover de PostgreSQL
 - PostgreSQL sigue centralizado y su recuperacion actual se resuelve con backup y restore
+
+## 20. S32 - demo aislado de replicacion PostgreSQL y failover manual
+
+Antes de iniciar el demo S32, liberar `56432` si `campusenroll-postgres` ya esta arriba:
+
+```powershell
+docker stop campusenroll-postgres
+```
+
+Validar Compose:
+
+```powershell
+docker compose -f docker-compose.db-ha-demo.yml config
+```
+
+Levantar el demo:
+
+```powershell
+docker compose -f docker-compose.db-ha-demo.yml up -d --build
+docker compose -f docker-compose.db-ha-demo.yml ps
+```
+
+Verificar primary y replica:
+
+```powershell
+docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"
+docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"
+docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT application_name, state, sync_state FROM pg_stat_replication;"
+docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT status, conninfo FROM pg_stat_wal_receiver;"
+```
+
+Resultado esperado:
+
+- primary: `pg_is_in_recovery() = false`
+- replica: `pg_is_in_recovery() = true`
+- `pg_stat_replication` muestra una fila de replica normalmente en `streaming`
+- `pg_stat_wal_receiver` muestra `status = streaming`
+
+Probar replicacion visible:
+
+```powershell
+docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "INSERT INTO replication_probe(label) VALUES ('replicated-from-primary');"
+docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT id, label, created_at FROM replication_probe ORDER BY id DESC LIMIT 5;"
+```
+
+Resultado esperado:
+
+- la fila `replicated-from-primary` aparece en la replica
+
+Demostrar que la replica es solo lectura antes de promocion:
+
+```powershell
+docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "INSERT INTO replication_probe(label) VALUES ('should-fail-on-replica');"
+```
+
+Resultado esperado:
+
+- error porque la replica sigue en recovery
+
+Failover manual:
+
+```powershell
+docker stop campusenroll-pg-primary
+docker exec -u postgres campusenroll-pg-replica pg_ctl -D /var/lib/postgresql/data promote
+docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"
+docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "INSERT INTO replication_probe(label) VALUES ('written-after-promotion'); SELECT id, label, created_at FROM replication_probe ORDER BY id DESC LIMIT 5;"
+```
+
+Resultado esperado:
+
+- `pg_is_in_recovery() = false` despues de la promocion
+- la replica promovida acepta escrituras
+
+Reset:
+
+```powershell
+docker compose -f docker-compose.db-ha-demo.yml down -v
+```
+
+Mensaje exacto para la defensa:
+
+- S32 si implementa un demo aislado de PostgreSQL primary y read replica con streaming replication
+- el failover aqui es manual y se demuestra promoviendo la replica
+- esto no reemplaza el PostgreSQL principal del stack de aplicacion
+- esto no es failover automatico ni un cluster Patroni, repmgr o pg_auto_failover

@@ -6,8 +6,8 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 - Curso y seccion: `[Completar]`
 - Proyecto: CampusEnroll HA
-- Segmento: S31
-- Rol responsable: saga compensation implementation owner
+- Segmento: S32
+- Rol responsable: PostgreSQL replication and database HA demo owner
 - Docente: `[Completar]`
 - Integrantes: `[Completar]`
 - Fecha: `[Completar]`
@@ -17,11 +17,11 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 ## 2. Resumen ejecutivo
 
-CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completo ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness. S22 agrega una capa practica de backup, restore y recuperacion ante desastres para PostgreSQL. S28 activa reglas reales de Prometheus, S29 agrega `Idempotency-Key` para escrituras criticas seleccionadas, S30 agrega outbox transaccional para los servicios productores de eventos y S31 agrega una compensacion basica de saga por choreografia sobre RabbitMQ.
+CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completo ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness. S22 agrega una capa practica de backup, restore y recuperacion ante desastres para PostgreSQL. S28 activa reglas reales de Prometheus, S29 agrega `Idempotency-Key` para escrituras criticas seleccionadas, S30 agrega outbox transaccional para los servicios productores de eventos, S31 agrega una compensacion basica de saga por choreografia sobre RabbitMQ y S32 agrega un demo aislado de replicacion streaming de PostgreSQL con primary, read replica y failover manual por promocion.
 
 Mensaje central:
 
-`CampusEnroll HA ya es demostrable como plataforma local HA-ready con recuperacion de datos PostgreSQL, outbox transaccional y compensacion basica por choreografia, pero no debe presentarse como una solucion de alta disponibilidad productiva ni como un motor de saga completo.`
+`CampusEnroll HA ya es demostrable como plataforma local HA-ready con recuperacion de datos PostgreSQL, outbox transaccional, compensacion basica por choreografia y un demo aislado de replicacion streaming con failover manual, pero no debe presentarse como una solucion de alta disponibilidad productiva ni como un motor de saga completo.`
 
 ### Implementado actualmente
 
@@ -42,13 +42,15 @@ Mensaje central:
 - `infra/backups/restore-postgres.ps1` restaura un dump seleccionado con advertencia visible.
 - `infra/backups/verify-database.ps1` valida base, usuario y conteos clave.
 - `infra/backups/DISASTER_RECOVERY_RUNBOOK.md` documenta perdida de datos, corrupcion de volumen y reconstruccion del entorno local.
+- `docker-compose.db-ha-demo.yml` agrega un primary y una read replica PostgreSQL para un demo aislado de streaming replication.
+- `infra/postgres-ha/` agrega scripts PowerShell y assets de inicializacion para verificar replica, promover la replica y reiniciar el demo S32.
 - `postman/` sigue siendo el cliente operativo actual.
 - `infra/k6/` sigue siendo el paquete de validacion final.
 
 ### Configurado o preparado
 
 - Grafana esta disponible como infraestructura local accesible.
-- Compose ya permite demostrar arranque coordinado, estado de salud, metricas Prometheus, backup PostgreSQL y recuperacion manual de servicios.
+- Compose ya permite demostrar arranque coordinado, estado de salud, metricas Prometheus, backup PostgreSQL, recuperacion manual de servicios y un demo aislado de read replica con promocion manual.
 
 ### Pendiente o mejora futura
 
@@ -56,7 +58,8 @@ Mensaje central:
 - balanceador real
 - cluster Redis
 - cluster RabbitMQ
-- replicacion y failover de PostgreSQL
+- failover automatico de PostgreSQL con eleccion de lider, fencing y reroute de clientes
+- read routing integrado de los microservicios hacia replicas PostgreSQL
 - motor de saga completo con orquestacion central, DLQ y politicas avanzadas de compensacion
 - backups programados
 - almacenamiento off-site
@@ -66,21 +69,21 @@ Mensaje central:
 - dashboards Grafana listos para plataforma y negocio
 - Alertmanager, notificaciones externas y gobierno operativo de alertas
 
-## 3. Objetivo tecnico de S31
+## 3. Objetivo tecnico de S32
 
-El objetivo de este segmento no fue rehacer la arquitectura ni reemplazar el flujo Maven existente. El objetivo fue agregar una compensacion basica de saga con cambios pequenos y revisables:
+El objetivo de este segmento no fue rehacer la arquitectura ni reemplazar el flujo Maven existente. El objetivo fue agregar una capa aislada y demostrable de replicacion PostgreSQL con cambios pequenos y revisables:
 
-1. preservar PostgreSQL centralizado y las APIs REST actuales
-2. preservar RabbitMQ como mecanismo asincrono de entrega entre servicios
-3. mantener S30 como mecanismo confiable de publicacion mediante `outbox_events`
-4. conservar que `billing-service` publique `BillingStatusChangedEvent` solo cuando cambia el estado
-5. agregar en `enrollment-service` una cola propia enlazada a `billing.status.changed`
-6. compensar transaccionalmente la inscripcion relacionada solo cuando el billing queda `CANCELLED`
-7. mantener explicitos los limites entre esta compensacion basica por choreografia y un motor de saga completo
+1. preservar el PostgreSQL centralizado que usan los microservicios actuales
+2. evitar cambios en backend Java, `db/schema.sql`, HAProxy, backups y alertas existentes
+3. agregar un `docker-compose.db-ha-demo.yml` separado del stack principal
+4. demostrar un PostgreSQL primary y una read replica con streaming replication
+5. hacer visible la replicacion con una tabla simple `replication_probe`
+6. demostrar failover manual promoviendo la replica
+7. documentar switchover manual, limites operativos y diferencia frente a HA productiva automatica
 
 ## 4. Arquitectura operativa actual
 
-La entrega final debe describirse con dos modos de ejecucion, no con una sola narrativa.
+La entrega final debe describirse con tres modos de ejecucion mas un demo aislado de base de datos, no con una sola narrativa.
 
 ### Standard mode
 
@@ -94,6 +97,15 @@ La entrega final debe describirse con dos modos de ejecucion, no con una sola na
 - cada servicio tiene restart policy y healthcheck HTTP contra `GET /health`
 - Prometheus scrapea `/actuator/prometheus` de los cinco servicios por nombre interno Docker
 
+### PostgreSQL replication demo S32
+
+- `docker-compose.db-ha-demo.yml` levanta `campusenroll-pg-primary` y `campusenroll-pg-replica`
+- el primary escucha en `localhost:56432`
+- la replica escucha en `localhost:56433`
+- la replica se inicializa desde el primary con `pg_basebackup -R`
+- la verificacion y el failover manual se hacen con `psql`, `pg_stat_replication`, `pg_stat_wal_receiver` y `pg_ctl promote`
+- este demo no cambia las JDBC del stack principal ni reemplaza `campusenroll-postgres`
+
 Tabla de componentes:
 
 | Componente | Estado actual | Comentario |
@@ -105,6 +117,7 @@ Tabla de componentes:
 | `notification` | Implementado para evidencia | Consumidor RabbitMQ y modo contenedor |
 | `gateway-service` | Preparado, no operativo | No participa en la demo actual |
 | PostgreSQL | Implementado | Persistencia principal y healthcheck |
+| PostgreSQL HA demo | Implementado de forma aislada | Primary, read replica, streaming replication y promocion manual fuera del stack principal |
 | Backup PostgreSQL | Implementado localmente | Scripts PowerShell y dumps en `infra/backups/output/` |
 | Redis | Implementado | Cache de lectura y healthcheck |
 | RabbitMQ | Implementado | Broker de eventos y healthcheck |
@@ -134,7 +147,7 @@ Puertos operativos relevantes:
 
 | Recurso | Puerto local | Nota |
 | --- | --- | --- |
-| PostgreSQL | `55432` | definido en `.env` actual |
+| PostgreSQL | `56432` | definido en `.env` actual |
 | Redis | `6379` | por defecto |
 | RabbitMQ AMQP | `5672` | por defecto |
 | RabbitMQ UI | `15672` | `guest/guest` |
@@ -511,7 +524,48 @@ Lo que se demuestra:
 [Insertar evidencia E21 - reinicio y recuperacion de course-service]
 [Insertar evidencia E22 - fallback con Redis detenido]
 
-## 17. Limites actuales y mejoras futuras
+## 17. Demo aislado de replicacion PostgreSQL S32
+
+S32 agrega una capa separada de base de datos para cubrir el tema de replication y read replicas sin tocar la base principal de la aplicacion.
+
+Comandos de verificacion:
+
+```powershell
+docker compose -f docker-compose.db-ha-demo.yml config
+docker compose -f docker-compose.db-ha-demo.yml up -d --build
+docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"
+docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"
+docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT application_name, state, sync_state FROM pg_stat_replication;"
+docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT status, conninfo FROM pg_stat_wal_receiver;"
+docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "INSERT INTO replication_probe(label) VALUES ('replicated-from-primary');"
+docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT id, label, created_at FROM replication_probe ORDER BY id DESC LIMIT 5;"
+docker stop campusenroll-pg-primary
+docker exec -u postgres campusenroll-pg-replica pg_ctl -D /var/lib/postgresql/data promote
+docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"
+docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "INSERT INTO replication_probe(label) VALUES ('written-after-promotion'); SELECT id, label, created_at FROM replication_probe ORDER BY id DESC LIMIT 5;"
+```
+
+Interpretacion correcta:
+
+- `campusenroll-pg-primary` debe devolver `pg_is_in_recovery() = false`
+- `campusenroll-pg-replica` debe devolver `pg_is_in_recovery() = true` antes de la promocion
+- `pg_stat_replication` debe mostrar la replica en `streaming`
+- la fila insertada en el primary debe aparecer en la replica
+- la replica debe rechazar escrituras antes de `promote`
+- despues de `promote`, la replica debe devolver `pg_is_in_recovery() = false` y aceptar escrituras
+
+Mensaje honesto:
+
+- esto es un demo aislado de streaming replication y failover manual
+- esto no reemplaza la base principal del stack
+- esto no es failover automatico
+- esto no es Patroni, repmgr ni pg_auto_failover
+
+[Insertar evidencia E29 - primary y replica en estado esperado]
+[Insertar evidencia E30 - fila replicada en la replica]
+[Insertar evidencia E31 - promocion manual de la replica]
+
+## 18. Limites actuales y mejoras futuras
 
 Los siguientes puntos deben quedar expresados como pendientes, no como trabajo ya completado:
 
@@ -519,7 +573,7 @@ Los siguientes puntos deben quedar expresados como pendientes, no como trabajo y
 - replicas activas por servicio
 - balanceador de carga
 - failover automatico
-- replicacion de PostgreSQL
+- integracion de las aplicaciones con replicas PostgreSQL
 - backups programados
 - almacenamiento off-site
 - cifrado de backups
@@ -530,12 +584,12 @@ Los siguientes puntos deben quedar expresados como pendientes, no como trabajo y
 - dashboards Grafana listos para plataforma y negocio
 - Alertmanager, notificaciones externas y dashboards operativos completos
 
-## 18. Conclusiones
+## 19. Conclusiones
 
-CampusEnroll HA ya puede presentarse como una solucion local `HA-ready` para la entrega: tiene infraestructura compartida endurecida, servicios de aplicacion contenedorizables, restart policies, healthchecks, cache Redis, outbox transaccional y eventos RabbitMQ, compensacion basica por choreografia para billings cancelados, evidencia con Postman, validacion con k6, metricas Prometheus reales en los cinco microservicios y una capa local de backup/restore para PostgreSQL.
+CampusEnroll HA ya puede presentarse como una solucion local `HA-ready` para la entrega: tiene infraestructura compartida endurecida, servicios de aplicacion contenedorizables, restart policies, healthchecks, cache Redis, outbox transaccional y eventos RabbitMQ, compensacion basica por choreografia para billings cancelados, evidencia con Postman, validacion con k6, metricas Prometheus reales en los cinco microservicios, una capa local de backup/restore para PostgreSQL y ahora un demo aislado de read replica con streaming replication y promocion manual.
 
 La conclusion correcta no es "ya existe alta disponibilidad real". La conclusion correcta es:
 
-`la plataforma ya demuestra readiness local, recuperacion operativa basica, recuperacion manual de datos PostgreSQL, outbox transaccional y una compensacion basica por choreografia, pero la alta disponibilidad productiva y un motor de saga completo siguen siendo mejoras futuras.`
+`la plataforma ya demuestra readiness local, recuperacion operativa basica, recuperacion manual de datos PostgreSQL, un demo aislado de streaming replication con failover manual, outbox transaccional y una compensacion basica por choreografia, pero la alta disponibilidad productiva y un motor de saga completo siguen siendo mejoras futuras.`
 
 [Insertar evidencia E23 - resumen final o cierre del PDF]
