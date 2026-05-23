@@ -10,6 +10,8 @@ import com.campusenroll.enrollmentservice.idempotency.IdempotencyService;
 import com.campusenroll.enrollmentservice.outbox.EnrollmentOutboxService;
 import java.time.OffsetDateTime;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class EnrollmentService {
 
+    private static final Logger log = LoggerFactory.getLogger(EnrollmentService.class);
     private static final String DUPLICATE_ACTIVE_ENROLLMENT_MESSAGE =
             "An active enrollment already exists for this student and section";
     private static final String SERVICE_NAME = "enrollment-service";
@@ -103,6 +106,25 @@ public class EnrollmentService {
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException(DUPLICATE_ACTIVE_ENROLLMENT_MESSAGE);
         }
+    }
+
+    @Transactional
+    public EnrollmentCompensationResult compensateEnrollmentForCancelledBilling(Long enrollmentId) {
+        Enrollment enrollment = enrollmentRepository.findById(enrollmentId).orElse(null);
+        if (enrollment == null) {
+            log.warn("Skipping enrollment compensation because enrollmentId={} was not found", enrollmentId);
+            return EnrollmentCompensationResult.ENROLLMENT_NOT_FOUND;
+        }
+
+        if (enrollment.getStatus() == EnrollmentStatus.CANCELLED) {
+            log.info("Skipping enrollment compensation because enrollmentId={} is already CANCELLED", enrollmentId);
+            return EnrollmentCompensationResult.ALREADY_CANCELLED;
+        }
+
+        enrollment.setStatus(EnrollmentStatus.CANCELLED);
+        enrollmentRepository.saveAndFlush(enrollment);
+        log.info("Compensated enrollmentId={} from ENROLLED to CANCELLED after billing cancellation", enrollmentId);
+        return EnrollmentCompensationResult.COMPENSATED;
     }
 
     private Enrollment findEnrollment(Long id) {

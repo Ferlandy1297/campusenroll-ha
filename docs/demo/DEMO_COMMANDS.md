@@ -1,6 +1,6 @@
-# Demo Commands - PowerShell - S30
+# Demo Commands - PowerShell - S31
 
-## 0. Compilar y probar los servicios afectados por S30
+## 0. Compilar y probar los servicios afectados por S31
 
 ```powershell
 mvn -f backend/enrollment-service/pom.xml test
@@ -240,13 +240,22 @@ $duplicateBillingBody = @{
 curl.exe -i -X POST http://localhost:8084/api/billings -H "Content-Type: application/json" -d $duplicateBillingBody
 ```
 
-### Cambiar el estado del cobro a `PAID`
+### Cambiar el estado del cobro a `CANCELLED`
 
 ```powershell
-Invoke-RestMethod -Method Patch -Uri "http://localhost:8084/api/billings/$($billing.id)/status" -ContentType 'application/json' -Body (@{
-  status = 'PAID'
+$cancelledBilling = Invoke-RestMethod -Method Patch -Uri "http://localhost:8084/api/billings/$($billing.id)/status" -ContentType 'application/json' -Body (@{
+  status = 'CANCELLED'
 } | ConvertTo-Json -Compress)
+$cancelledBilling
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, enrollment_id, status FROM billings WHERE id = $($billing.id);"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, student_id, section_id, status FROM enrollments WHERE id = $($enrollment.id);"
 ```
+
+Resultado esperado:
+
+- el billing queda en `CANCELLED`
+- la inscripcion relacionada pasa de `ENROLLED` a `CANCELLED`
+- si vuelves a ejecutar el mismo `PATCH` con `CANCELLED`, el billing queda igual y la compensacion no rompe el estado ya cancelado
 
 ### Validar `Idempotency-Key` en enrollments
 
@@ -333,14 +342,15 @@ Evidencia esperada:
 - respuestas correctas de `GET /api/courses`
 - al menos una llave `courses::*`
 
-## 13. Verificar outbox transaccional S30
+## 13. Verificar outbox transaccional S30 y compensacion basica S31
 
-Despues de crear la inscripcion y cambiar el estado del cobro a `PAID`, inspeccionar el outbox:
+Despues de crear la inscripcion y cambiar el estado del cobro a `CANCELLED`, inspeccionar el outbox:
 
 ```powershell
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, service_name, event_type, routing_key, status, attempts, created_at, published_at FROM outbox_events ORDER BY id DESC LIMIT 20;"
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, service_name, aggregate_type, aggregate_id, event_type, status, attempts, last_error FROM outbox_events WHERE aggregate_type = 'enrollment' AND aggregate_id = $($enrollment.id) ORDER BY id DESC;"
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, service_name, aggregate_type, aggregate_id, event_type, status, attempts, last_error FROM outbox_events WHERE aggregate_type = 'billing' AND aggregate_id = $($billing.id) ORDER BY id DESC;"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, student_id, section_id, status FROM enrollments ORDER BY id DESC LIMIT 10;"
 ```
 
 Resultado esperado:
@@ -350,6 +360,7 @@ Resultado esperado:
 - estado normalmente `PUBLISHED` pocos segundos despues de la escritura
 - `published_at` no nulo cuando RabbitMQ ya recibio el evento
 - `attempts=0` en un escenario sano
+- la fila de `enrollments` asociada al billing cancelado debe verse como `CANCELLED`
 
 ## 14. Verificar RabbitMQ y logs de eventos
 
@@ -375,12 +386,20 @@ docker exec -i campusenroll-rabbitmq rabbitmqctl list_queues name messages_ready
 Log lines que deben observarse:
 
 - en `enrollment-service`:
+  - `Processed billing cancellation compensation ...`
+- en `enrollment-service`:
   - `Published EnrollmentCreatedEvent ...`
 - en `billing-service`:
   - `Published BillingStatusChangedEvent ...`
 - en `notification`:
   - `Enrollment created event received ...`
   - `Billing status changed event received ...`
+
+Filas y bindings que deben observarse:
+
+- una cola `enrollment.compensation.events`
+- un binding desde `campusenroll.events` hacia `enrollment.compensation.events` con routing key `billing.status.changed`
+- la cola `notification.events` debe seguir enlazada y consumiendo sin romperse
 
 ## 15. Ejecutar k6
 
@@ -484,11 +503,12 @@ Mensaje honesto:
 - S28 agrega reglas activas de Prometheus para disponibilidad, target faltante, 5xx y p95 de latencia
 - S29 agrega `Idempotency-Key` real para `POST /api/enrollments` y `POST /api/billings`
 - S30 agrega outbox transaccional para `EnrollmentCreatedEvent` y `BillingStatusChangedEvent`
+- S31 agrega compensacion basica por choreografia: cuando un billing pasa a `CANCELLED`, `enrollment-service` consume `billing.status.changed` y cancela la inscripcion relacionada
 - el workflow Maven local sigue intacto, pero los targets por nombre de servicio Docker solo apareceran `UP` en la UI de Prometheus cuando `docker-compose.apps.yml` este activo
 - si Prometheus ya venia ejecutandose desde una corrida anterior, puede requerir un `restart prometheus` para recargar la nueva configuracion montada
 - Alertmanager y notificaciones externas siguen fuera del alcance actual
 - Grafana sigue disponible, pero dashboards de negocio, replicas y clustering siguen como mejora futura
-- la compensacion completa de sagas sigue pendiente para S31
+- esto no implementa orquestacion central ni un motor de saga completo
 
 ## 17. Observacion de falla controlada de infraestructura
 

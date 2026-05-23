@@ -6,7 +6,7 @@
 - Microservice packaging is strong. `student-service`, `course-service`, `enrollment-service`, `billing-service`, and `notification` are all implemented as Spring Boot services with service-level docs and health endpoints.
 - PostgreSQL schema and seed coverage are strong. `db/schema.sql` and `db/data.sql` give the course a concrete relational artifact with keys, checks, indexes, and deterministic demo data.
 - Redis coverage is strong enough for the course. `course-service` uses Redis for catalog caching and includes a documented fallback path when Redis is unavailable.
-- RabbitMQ coverage is strong enough for messaging fundamentals. Enrollment and billing now publish through a transactional outbox, and notification consumes the resulting events through a shared exchange and queue bindings.
+- RabbitMQ coverage is strong enough for messaging fundamentals. Enrollment and billing now publish through a transactional outbox, notification consumes the resulting events for evidence, and enrollment-service now consumes billing cancellation events for basic compensation.
 - Prometheus metrics coverage is strong. All five services expose `/actuator/prometheus`, and Prometheus is configured to scrape them in the HA-readiness mode.
 - k6 coverage is strong. The repo includes smoke, exact-load, and concurrent enrollment scripts plus a manual failure observation guide.
 - Backup and restore coverage is strong. The PowerShell scripts plus the disaster recovery runbook give the project a concrete continuity story for PostgreSQL.
@@ -17,7 +17,7 @@
 - MVCC and ACID are present through PostgreSQL and transactional service methods, but the repo does not yet explain them in CampusEnroll terms. The team should connect the theory to `@Transactional` code and the centralized database.
 - Isolation-level coverage is implicit, not explicit. PostgreSQL behavior exists underneath the system, but the repo does not show a short CampusEnroll-specific explanation of `READ COMMITTED`, repeatable reads, or serialization tradeoffs.
 - Idempotency wording now needs a narrower explanation. S29 implements `Idempotency-Key` for selected critical endpoints, and S30 adds a transactional outbox for producer reliability, but the repo still does not implement full endpoint coverage.
-- Saga versus choreography needs a careful explanation. RabbitMQ is real in the repo, but the current flow is lightweight choreography for evidence, not a full compensated saga.
+- Saga versus choreography still needs careful explanation. RabbitMQ is real in the repo, and S31 adds basic compensation through choreography, but the current flow is still not central orchestration or a full production saga engine.
 - RPO and RTO are documented in the disaster recovery runbook, but the team still needs to explain them clearly as local academic targets, not automated production guarantees.
 - Academic HA versus production HA needs constant discipline. The project demonstrates application-level continuity for `course-service`, not database replication, cluster-wide failover, or platform-grade HA.
 - Legacy document drift is real. Older S00 planning files and some diagrams still describe Redis, RabbitMQ, Prometheus, Grafana, and the gateway as planned rather than current or partially current.
@@ -35,7 +35,7 @@
 ## D. Production-level upgrades not recommended to implement now
 
 - Do not add PostgreSQL streaming replication or automatic database failover now. That is a different risk profile than the rest of the repo and would require new operational guarantees.
-- Do not redesign the system around full saga compensation, DLQ handling, and exactly-once messaging guarantees now. That would widen the backend scope far beyond an audit-alignment pass.
+- Do not widen the new S31 compensation path into a full saga engine, DLQ handling, or exactly-once messaging guarantees now. That would widen the backend scope far beyond an audit-alignment pass.
 - Do not introduce broad partitioning or anti-hotspot redesign now. The current data size and academic workload do not justify the migration risk.
 - Do not attempt a Kubernetes migration, Docker Swarm migration, or true multi-node deployment now. The current Compose-based story is already presentation-worthy and much safer.
 - Do not claim production-grade alerting, dashboards, or on-call workflow by adding thin placeholders. Those topics should either be evidence-backed or explicitly left future.

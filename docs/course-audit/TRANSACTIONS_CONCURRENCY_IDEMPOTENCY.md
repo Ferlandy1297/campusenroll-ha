@@ -182,15 +182,37 @@ S30 adds a real transactional outbox for the event-producing services:
 
 This improves reliability because the business write and the event intent are now persisted together in PostgreSQL before RabbitMQ delivery.
 
+S31 keeps that producer-side mechanism intact and reuses the published billing status events as the reliable source for downstream compensation.
+
 It does not mean:
 
 - exactly-once distributed delivery
-- full saga compensation
+- a full saga engine with centralized orchestration, DLQ policies, or advanced retry choreography
 - a transactional broker plus database two-phase commit
 
 The correct phrase is:
 
-`CampusEnroll HA now implements a transactional outbox for the enrollment and billing producers. That improves event reliability, but it is not the same as full saga compensation or exactly-once distributed delivery.`
+`CampusEnroll HA now implements a transactional outbox for the enrollment and billing producers. That improves event reliability and now feeds the S31 compensation flow, but it is not the same as a full saga engine or exactly-once distributed delivery.`
+
+### 7. Basic saga compensation through RabbitMQ choreography
+
+S31 adds a narrow compensation path on top of the existing RabbitMQ choreography and S30 outbox.
+
+Current behavior:
+
+- `billing-service` still publishes `BillingStatusChangedEvent` only when the billing status actually changes
+- the event payload already includes `enrollmentId`
+- `enrollment-service` now binds `enrollment.compensation.events` to `billing.status.changed`
+- when the new billing status is `CANCELLED`, `enrollment-service` looks up the related enrollment and changes it from `ENROLLED` to `CANCELLED`
+- if the enrollment is already `CANCELLED`, the compensation step becomes a no-op
+- if the enrollment does not exist, the listener logs safely and returns without crashing
+- if the billing status is `PAID` or `PENDING`, the listener ignores the event
+
+Why this is idempotent enough for the current scope:
+
+- duplicate `billing.status.changed` events with `newStatus=CANCELLED` do not keep mutating the row
+- after the first successful compensation, the enrollment is already `CANCELLED`
+- the next duplicate event becomes a harmless no-op
 
 ### 7. k6 concurrent enrollment evidence
 
@@ -213,7 +235,7 @@ The current repo does not implement:
 - explicit `FOR UPDATE` locking
 - a deadlock retry framework
 - full idempotency coverage for every write endpoint
-- full saga compensation
+- a full saga engine with orchestration, DLQ routing, and broad compensation policies
 - seat inventory reservation logic
 - automatic replay-safe exactly-once event delivery across services
 
@@ -256,12 +278,12 @@ Current idempotency limitations:
 - not every write endpoint in the platform uses idempotency keys yet
 - only selected critical endpoints currently expose `Idempotency-Key`
 - the transactional outbox is now implemented only for the current event-producing services
-- the full saga compensation planned for S31 is still not implemented
+- only a basic compensation path is implemented; broader saga recovery and DLQ handling remain future work
 - the RabbitMQ flow is still not a fully replay-safe exactly-once distributed pipeline
 
 So the correct phrase is:
 
-`CampusEnroll HA now implements real API idempotency keys for selected critical write endpoints and a transactional outbox for the current event-producing services, but it still does not implement full saga compensation planned for S31.`
+`CampusEnroll HA now implements real API idempotency keys for selected critical write endpoints, a transactional outbox for the current event-producing services, and a basic compensation path for cancelled billings, but it still does not implement a full saga engine.`
 
 ## Relationship to RabbitMQ choreography
 
@@ -271,14 +293,15 @@ Current behavior:
 
 - enrollment writes `EnrollmentCreatedEvent` into `outbox_events`, then a scheduled publisher sends it to RabbitMQ
 - billing writes `BillingStatusChangedEvent` into `outbox_events`, then a scheduled publisher sends it to RabbitMQ
+- enrollment now consumes `billing.status.changed` on `enrollment.compensation.events` and compensates the related enrollment when the billing status becomes `CANCELLED`
 - notification still consumes both published events and records evidence
 
 Current limit:
 
-- there is no full distributed saga with compensation
+- there is no central orchestrator, DLQ policy, or full production saga engine
 - there is no exactly-once end-to-end delivery guarantee across PostgreSQL and RabbitMQ
 
-That means the current system is better described as lightweight event choreography than as a complete saga platform.
+That means the current system is better described as lightweight event choreography with basic compensation than as a complete saga platform.
 
 ## Useful inspection commands
 
@@ -302,6 +325,19 @@ Inspect the stored idempotency records:
 ```powershell
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, service_name, operation_name, idempotency_key, status, response_status, created_at, completed_at FROM idempotency_records ORDER BY id;"
 docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, service_name, event_type, routing_key, status, attempts, created_at, published_at FROM outbox_events ORDER BY id DESC LIMIT 20;"
+```
+
+Inspect the compensation queue and bindings:
+
+```powershell
+docker exec -i campusenroll-rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged consumers
+docker exec -i campusenroll-rabbitmq rabbitmqctl list_bindings source_name destination_name routing_key
+```
+
+Inspect the compensated enrollments:
+
+```powershell
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT id, student_id, section_id, status FROM enrollments ORDER BY id DESC LIMIT 10;"
 ```
 
 Run the concurrent enrollment evidence scenario:
@@ -377,7 +413,7 @@ docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT i
 
 Use wording like this:
 
-`CampusEnroll HA already uses real PostgreSQL transactions and relational constraints to protect critical operations. In S29 it adds real Idempotency-Key support for POST /api/enrollments and POST /api/billings, backed by a PostgreSQL idempotency_records table. In S30 it adds a transactional outbox for the enrollment and billing producers, so business writes and event intents are persisted atomically before RabbitMQ delivery. That is stronger than duplicate-only protection, but it is still not a full seat-capacity anti-oversell system or full saga compensation.`
+`CampusEnroll HA already uses real PostgreSQL transactions and relational constraints to protect critical operations. In S29 it adds real Idempotency-Key support for POST /api/enrollments and POST /api/billings, backed by a PostgreSQL idempotency_records table. In S30 it adds a transactional outbox for the enrollment and billing producers, so business writes and event intents are persisted atomically before RabbitMQ delivery. In S31 it adds a basic compensation flow where a cancelled billing event can cancel the related enrollment through RabbitMQ choreography. That is stronger than duplicate-only protection, but it is still not a full seat-capacity anti-oversell system or a full saga engine.`
 
 ## Bottom line
 
@@ -388,6 +424,7 @@ CampusEnroll HA is already defensible in Database II terms because it combines:
 - concurrency-aware duplicate protection
 - selected API idempotency keys backed by PostgreSQL
 - transactional outbox persistence for producer events
+- basic compensation for cancelled billings through RabbitMQ choreography
 - a dedicated k6 concurrency asset
 
 The missing pieces are advanced production refinements, not proof that the current system lacks transactional discipline.

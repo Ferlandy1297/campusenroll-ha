@@ -6,7 +6,7 @@ CampusEnroll HA ya tiene una base funcional para:
 
 - `student-service` con endpoints de estudiantes
 - `course-service` con catalogo academico y cache Redis
-- `enrollment-service` con inscripciones y outbox transaccional para `EnrollmentCreatedEvent`
+- `enrollment-service` con inscripciones, outbox transaccional para `EnrollmentCreatedEvent` y compensacion basica por RabbitMQ cuando un cobro queda `CANCELLED`
 - `billing-service` con cobros y outbox transaccional para `BillingStatusChangedEvent`
 - `Idempotency-Key` real en `POST /api/enrollments` y `POST /api/billings`
 - `notification` como consumidor RabbitMQ para evidencia y logs
@@ -22,6 +22,8 @@ La entrega actual ya no depende solo del flujo local con Maven. El repo soporta 
 S22 agrega una capa practica de backup y recuperacion ante desastres para PostgreSQL. Esto fortalece la continuidad operativa local y la narrativa de HA readiness sin convertir el proyecto en una plataforma productiva de alta disponibilidad.
 
 S25 agrega una capa de failover y switchover a nivel de aplicacion para `course-service` mediante HAProxy y `course-service-replica`. Esto protege el catalogo academico ante la caida del proceso del servicio, pero no cambia la regla de PostgreSQL centralizado ni implementa failover de base de datos.
+
+S31 agrega una compensacion basica de saga por choreografia: `billing-service` sigue publicando `BillingStatusChangedEvent` mediante el outbox transaccional de S30 y ahora `enrollment-service` consume `billing.status.changed` para cancelar la inscripcion relacionada cuando el cobro pasa a `CANCELLED`.
 
 Alcance honesto:
 
@@ -175,7 +177,8 @@ Mensaje honesto:
 - reglas activas de alerta Prometheus para caida de servicio, target faltante, error HTTP y p95 de latencia
 - Redis real en `course-service`
 - outbox transaccional real en `enrollment-service` y `billing-service` para persistir eventos antes de publicarlos
-- RabbitMQ real para publicacion asincrona y consumo de eventos de evidencia
+- RabbitMQ real para publicacion asincrona, evidencia y compensacion basica por eventos
+- cola `enrollment.compensation.events` enlazada a `billing.status.changed` para que `enrollment-service` reaccione a cobros `CANCELLED`
 - failover y switchover a nivel de aplicacion para `course-service` usando health checks HTTP en HAProxy
 - backup manual de PostgreSQL con `infra/backups/backup-postgres.ps1`
 - restore manual de PostgreSQL con `infra/backups/restore-postgres.ps1`
@@ -196,7 +199,7 @@ Mensaje honesto:
 - Kubernetes o Docker Swarm
 - dashboards Grafana listos para plataforma y negocio
 - Alertmanager, enrutamiento de notificaciones y observabilidad operativa de produccion
-- compensacion completa de sagas
+- motor de saga completo con orquestacion central, DLQ y politicas avanzadas de compensacion
 - backups programados
 - almacenamiento off-site
 - cifrado de backups
