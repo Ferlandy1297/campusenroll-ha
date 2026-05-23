@@ -1,6 +1,6 @@
-# Demo Commands - PowerShell - S32
+# Demo Commands - PowerShell - S33
 
-## 0. Compilar y probar los servicios afectados por S31
+## 0. Compilar y probar los servicios con regresion funcional critica
 
 ```powershell
 mvn -f backend/enrollment-service/pom.xml test
@@ -15,10 +15,11 @@ Get-Content .\.env
 
 Notas:
 
-- El `.env` actual usa `POSTGRES_PORT=56432`.
+- El `.env` actual usa `POSTGRES_PORT=55432` para el PostgreSQL principal del stack.
 - Si cambias a `5432`, las URLs JDBC del modo Maven deben usar ese mismo puerto.
 - Frontend sigue fuera de alcance; Postman es el cliente operativo actual.
-- El demo aislado S32 tambien usa `56432` para su PostgreSQL primary. No debe levantarse al mismo tiempo que `campusenroll-postgres` si ese contenedor ya esta ocupando el puerto.
+- El demo aislado S32 usa `56432` para su primary y `56433` para su replica.
+- El stack principal y el demo S32 usan puertos host distintos, asi que la separacion es logica y de topologia, no por conflicto de puertos.
 
 ## 2. HA readiness mode: levantar stack completo
 
@@ -86,7 +87,7 @@ Abrir una terminal PowerShell por servicio.
 
 ```powershell
 Set-Location .\backend\student-service
-$env:STUDENT_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:56432/campusenroll'
+$env:STUDENT_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
 mvn spring-boot:run
 ```
 
@@ -94,7 +95,7 @@ mvn spring-boot:run
 
 ```powershell
 Set-Location .\backend\course-service
-$env:COURSE_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:56432/campusenroll'
+$env:COURSE_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
 mvn spring-boot:run
 ```
 
@@ -102,7 +103,7 @@ mvn spring-boot:run
 
 ```powershell
 Set-Location .\backend\enrollment-service
-$env:ENROLLMENT_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:56432/campusenroll'
+$env:ENROLLMENT_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
 mvn spring-boot:run
 ```
 
@@ -110,7 +111,7 @@ mvn spring-boot:run
 
 ```powershell
 Set-Location .\backend\billing-service
-$env:BILLING_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:56432/campusenroll'
+$env:BILLING_SERVICE_DATASOURCE_URL='jdbc:postgresql://localhost:55432/campusenroll'
 mvn spring-boot:run
 ```
 
@@ -609,11 +610,7 @@ Mensaje exacto para la defensa:
 
 ## 20. S32 - demo aislado de replicacion PostgreSQL y failover manual
 
-Antes de iniciar el demo S32, liberar `56432` si `campusenroll-postgres` ya esta arriba:
-
-```powershell
-docker stop campusenroll-postgres
-```
+El stack principal sigue en `55432` y el demo S32 usa `56432` o `56433`, asi que no hace falta detener `campusenroll-postgres` solo por puertos.
 
 Validar Compose:
 
@@ -691,3 +688,11 @@ Mensaje exacto para la defensa:
 - el failover aqui es manual y se demuestra promoviendo la replica
 - esto no reemplaza el PostgreSQL principal del stack de aplicacion
 - esto no es failover automatico ni un cluster Patroni, repmgr o pg_auto_failover
+
+## 21. S33 - paquete final de regresion y evidencia
+
+Documentos de cierre recomendados:
+
+- `docs/final/FINAL_REGRESSION_CHECKLIST.md`
+- `docs/final/FINAL_EVIDENCE_PACKAGE.md`
+- `docs/final/FINAL_PRESENTATION_READINESS.md`

@@ -1,8 +1,8 @@
-# Demo Script - Entrega Final S32
+# Demo Script - Entrega Final S33
 
 ## Objetivo
 
-Exponer en 7 a 9 minutos el estado real de CampusEnroll HA despues de S25, sin sobredeclarar cluster, failover de base de datos, backups productivos ni observabilidad de nivel productivo que el repo aun no entrega.
+Exponer en 7 a 9 minutos el estado real de CampusEnroll HA despues de S32, con la limpieza documental y el paquete de evidencia final consolidados en S33, sin sobredeclarar cluster, failover de base de datos, backups productivos ni observabilidad de nivel productivo que el repo aun no entrega.
 
 Mensaje central:
 
@@ -22,6 +22,7 @@ Antes de iniciar la demo:
 - RabbitMQ UI, Prometheus y Grafana accesibles
 - una terminal PowerShell abierta en la raiz del repo
 - recordar que no existe frontend; Postman sigue siendo el cliente operativo
+- tener a mano `docs/final/FINAL_REGRESSION_CHECKLIST.md` y `docs/final/FINAL_EVIDENCE_PACKAGE.md` como guia unica de validacion y capturas
 
 ## 1. Apertura - 0:00 a 0:40
 
@@ -179,6 +180,7 @@ Puntos a remarcar:
 
 - esto si demuestra read replica y failover manual a nivel de base de datos
 - esto no cambia las JDBC de los microservicios
+- el stack principal sigue usando `POSTGRES_PORT=55432` desde `.env`
 - el cliente se mueve manualmente al puerto `56433` despues de la promocion
 - esto no es Patroni, repmgr ni pg_auto_failover
 

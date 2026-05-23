@@ -7,6 +7,10 @@
 - Rol responsable: final validation, observability, demo, and delivery documentation owner
 - Fecha de alineacion: 2026-05-13
 
+## 1.1 Clarificacion S33
+
+Este documento conserva el contexto historico de S19. Las referencias a `55432` siguen apuntando al PostgreSQL principal del stack definido en `.env`. El demo aislado de replicacion agregado en S32 usa `56432` y `56433` y se documenta por separado en `docs/ha/POSTGRES_REPLICATION_FAILOVER_DEMO.md`.
+
 ## 2. Resumen ejecutivo
 
 ### Implementado actualmente

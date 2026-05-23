@@ -17,4 +17,5 @@
 - The demo uses HAProxy plus `course-service-replica`.
 - PostgreSQL still remains centralized for the main application stack.
 - S32 now adds a separate PostgreSQL streaming replication demo with manual replica promotion.
+- The main stack keeps its `.env` PostgreSQL port, currently `55432`, while the isolated S32 demo uses `56432` and `56433`.
 - Automatic PostgreSQL failover is still not implemented; backup and restore remain the main data recovery layer for the application stack.
