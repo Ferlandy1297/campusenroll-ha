@@ -41,7 +41,7 @@ public class Section {
     private AcademicPeriod academicPeriod;
 
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "section_schedule_blocks", joinColumns = @JoinColumn(name = "section_id"))
+    @CollectionTable(name = "schedule_blocks", joinColumns = @JoinColumn(name = "section_id"))
     @OrderColumn(name = "block_order")
     private List<ScheduleBlock> scheduleBlocks = new ArrayList<>();
 

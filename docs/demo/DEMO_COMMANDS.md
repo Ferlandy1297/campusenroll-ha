@@ -1,4 +1,4 @@
-# Demo Commands - PowerShell - S33
+# Demo Commands - PowerShell - S34
 
 ## 0. Compilar y probar los servicios con regresion funcional critica
 
@@ -24,20 +24,21 @@ Notas:
 ## 2. HA readiness mode: levantar stack completo
 
 ```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml down -v --remove-orphans
 docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml up -d --build
+Start-Sleep -Seconds 90
 docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.ha-demo.yml ps
 ```
 
 Este es el comando recomendado para la defensa del estado actual.
 
-## 3. Cargar PostgreSQL de forma determinista
+## 3. Verificar bootstrap determinista de PostgreSQL
 
-Ejecutar este paso al menos la primera vez sobre un volumen PostgreSQL nuevo:
+Sobre un volumen PostgreSQL nuevo, el stack principal ahora carga `db/schema.sql` y `db/data.sql` automaticamente mediante `/docker-entrypoint-initdb.d`. `billings` debe existir despues del arranque limpio.
 
 ```powershell
-Get-Content -Raw .\db\schema.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
-Get-Content -Raw .\db\data.sql | docker exec -i campusenroll-postgres psql -U campus -d campusenroll -v ON_ERROR_STOP=1
-docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\dt"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;"
+docker exec -i campusenroll-postgres psql -U campus -d campusenroll -c "\d billings"
 ```
 
 Consultas utiles para evidencia:
@@ -261,7 +262,7 @@ Resultado esperado:
 
 ### Validar `Idempotency-Key` en enrollments
 
-Usar un par libre despues de recargar `db/schema.sql` y `db/data.sql`. El dataset actual deja libre `studentId=1`, `sectionId=2`.
+Usar un par libre despues de un arranque limpio del stack o de recrear el volumen PostgreSQL. El dataset actual deja libre `studentId=1`, `sectionId=2`.
 
 ```powershell
 $enrollmentHeaders = @{
@@ -612,6 +613,8 @@ Mensaje exacto para la defensa:
 
 El stack principal sigue en `55432` y el demo S32 usa `56432` o `56433`, asi que no hace falta detener `campusenroll-postgres` solo por puertos.
 
+En checkouts Windows, los scripts shell de `infra/postgres-ha` deben permanecer en LF para que Docker o Linux los ejecuten correctamente. `.gitattributes` ahora fija esa regla.
+
 Validar Compose:
 
 ```powershell
@@ -621,7 +624,9 @@ docker compose -f docker-compose.db-ha-demo.yml config
 Levantar el demo:
 
 ```powershell
+docker compose -f docker-compose.db-ha-demo.yml down -v --remove-orphans
 docker compose -f docker-compose.db-ha-demo.yml up -d --build
+Start-Sleep -Seconds 45
 docker compose -f docker-compose.db-ha-demo.yml ps
 ```
 
@@ -632,6 +637,7 @@ docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c
 docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT pg_is_in_recovery();"
 docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT application_name, state, sync_state FROM pg_stat_replication;"
 docker exec -i campusenroll-pg-replica psql -U campus -d campusenroll_ha_demo -c "SELECT status, conninfo FROM pg_stat_wal_receiver;"
+docker exec -i campusenroll-pg-primary psql -U campus -d campusenroll_ha_demo -c "SELECT COUNT(*) FROM replication_probe;"
 ```
 
 Resultado esperado:
@@ -640,6 +646,7 @@ Resultado esperado:
 - replica: `pg_is_in_recovery() = true`
 - `pg_stat_replication` muestra una fila de replica normalmente en `streaming`
 - `pg_stat_wal_receiver` muestra `status = streaming`
+- `replication_probe` existe antes de insertar filas de prueba
 
 Probar replicacion visible:
 
@@ -679,7 +686,7 @@ Resultado esperado:
 Reset:
 
 ```powershell
-docker compose -f docker-compose.db-ha-demo.yml down -v
+docker compose -f docker-compose.db-ha-demo.yml down -v --remove-orphans
 ```
 
 Mensaje exacto para la defensa:

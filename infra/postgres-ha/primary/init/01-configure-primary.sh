@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Allow the replica container to clone and stream from this demo primary.
 cat >> "$PGDATA/pg_hba.conf" <<EOF
 host replication ${REPLICATION_USER} all scram-sha-256
 host ${POSTGRES_DB} ${POSTGRES_USER} all scram-sha-256
