@@ -202,6 +202,65 @@ class EnrollmentServiceTest {
                 .hasMessage("An active enrollment already exists for this student and section");
     }
 
+    @Test
+    void shouldCompensateEnrolledEnrollmentWhenBillingIsCancelled() {
+        RepositoryState state = new RepositoryState();
+        EnrollmentService enrollmentService = new EnrollmentService(
+                repository(state),
+                new RecordingEnrollmentOutboxService(),
+                idempotencyService(new IdempotencyRepositoryState()));
+
+        Enrollment enrollment = new Enrollment();
+        enrollment.setStudentId(100L);
+        enrollment.setSectionId(200L);
+        enrollment.setStatus(EnrollmentStatus.ENROLLED);
+        enrollment.setEnrolledAt(OffsetDateTime.now().minusHours(1));
+        persist(state, enrollment);
+
+        EnrollmentCompensationResult result =
+                enrollmentService.compensateEnrollmentForCancelledBilling(enrollment.getId());
+
+        assertThat(result).isEqualTo(EnrollmentCompensationResult.COMPENSATED);
+        assertThat(state.storage.get(enrollment.getId()).getStatus()).isEqualTo(EnrollmentStatus.CANCELLED);
+    }
+
+    @Test
+    void shouldTreatDuplicateCancelledBillingCompensationAsIdempotent() {
+        RepositoryState state = new RepositoryState();
+        EnrollmentService enrollmentService = new EnrollmentService(
+                repository(state),
+                new RecordingEnrollmentOutboxService(),
+                idempotencyService(new IdempotencyRepositoryState()));
+
+        Enrollment enrollment = new Enrollment();
+        enrollment.setStudentId(100L);
+        enrollment.setSectionId(200L);
+        enrollment.setStatus(EnrollmentStatus.ENROLLED);
+        enrollment.setEnrolledAt(OffsetDateTime.now().minusHours(1));
+        persist(state, enrollment);
+
+        EnrollmentCompensationResult firstResult =
+                enrollmentService.compensateEnrollmentForCancelledBilling(enrollment.getId());
+        EnrollmentCompensationResult duplicateResult =
+                enrollmentService.compensateEnrollmentForCancelledBilling(enrollment.getId());
+
+        assertThat(firstResult).isEqualTo(EnrollmentCompensationResult.COMPENSATED);
+        assertThat(duplicateResult).isEqualTo(EnrollmentCompensationResult.ALREADY_CANCELLED);
+        assertThat(state.storage.get(enrollment.getId()).getStatus()).isEqualTo(EnrollmentStatus.CANCELLED);
+    }
+
+    @Test
+    void shouldNotFailWhenCompensatingMissingEnrollment() {
+        EnrollmentService enrollmentService = new EnrollmentService(
+                repository(new RepositoryState()),
+                new RecordingEnrollmentOutboxService(),
+                idempotencyService(new IdempotencyRepositoryState()));
+
+        EnrollmentCompensationResult result = enrollmentService.compensateEnrollmentForCancelledBilling(99L);
+
+        assertThat(result).isEqualTo(EnrollmentCompensationResult.ENROLLMENT_NOT_FOUND);
+    }
+
     private static EnrollmentRepository repository(RepositoryState state) {
         InvocationHandler handler = new EnrollmentRepositoryHandler(state);
         return (EnrollmentRepository) Proxy.newProxyInstance(

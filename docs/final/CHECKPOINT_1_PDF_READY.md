@@ -6,8 +6,8 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 - Curso y seccion: `[Completar]`
 - Proyecto: CampusEnroll HA
-- Segmento: S22
-- Rol responsable: backup, restore, and disaster recovery owner
+- Segmento: S31
+- Rol responsable: saga compensation implementation owner
 - Docente: `[Completar]`
 - Integrantes: `[Completar]`
 - Fecha: `[Completar]`
@@ -17,11 +17,11 @@ Documento fuente PDF-ready para la entrega final de CampusEnroll HA.
 
 ## 2. Resumen ejecutivo
 
-CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completo ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness. S22 agrega una capa practica de backup, restore y recuperacion ante desastres para PostgreSQL. S28 activa reglas reales de Prometheus, S29 agrega `Idempotency-Key` para escrituras criticas seleccionadas y S30 agrega outbox transaccional para los servicios productores de eventos.
+CampusEnroll HA ya cuenta con una base funcional demostrable para estudiantes, catalogo academico, inscripciones y cobros. S20 agrego una capa segura de readiness local con Docker Compose para los cinco microservicios Spring Boot. S21 completo ese avance al exponer metricas Actuator/Prometheus reales en los cinco servicios y al dejar a Prometheus scrapeando esos endpoints dentro del modo HA readiness. S22 agrega una capa practica de backup, restore y recuperacion ante desastres para PostgreSQL. S28 activa reglas reales de Prometheus, S29 agrega `Idempotency-Key` para escrituras criticas seleccionadas, S30 agrega outbox transaccional para los servicios productores de eventos y S31 agrega una compensacion basica de saga por choreografia sobre RabbitMQ.
 
 Mensaje central:
 
-`CampusEnroll HA ya es demostrable como plataforma local HA-ready con recuperacion de datos PostgreSQL, pero no debe presentarse como una solucion de alta disponibilidad productiva.`
+`CampusEnroll HA ya es demostrable como plataforma local HA-ready con recuperacion de datos PostgreSQL, outbox transaccional y compensacion basica por choreografia, pero no debe presentarse como una solucion de alta disponibilidad productiva ni como un motor de saga completo.`
 
 ### Implementado actualmente
 
@@ -34,6 +34,7 @@ Mensaje central:
 - Prometheus scrapea `prometheus`, `student-service`, `course-service`, `enrollment-service`, `billing-service` y `notification` en modo HA readiness.
 - `course-service` usa Redis como cache real.
 - `enrollment-service` y `billing-service` escriben eventos en `outbox_events` y luego los publican a RabbitMQ.
+- `enrollment-service` consume `billing.status.changed` en `enrollment.compensation.events` y cancela la inscripcion relacionada cuando el cobro queda `CANCELLED`.
 - `POST /api/enrollments` y `POST /api/billings` aceptan `Idempotency-Key` y pueden reemitir la misma respuesta sin duplicar la operacion.
 - `notification` consume esos eventos y deja evidencia en logs.
 - `db/schema.sql` ahora incluye `outbox_events` para persistir el evento antes de la publicacion asincrona.
@@ -56,7 +57,7 @@ Mensaje central:
 - cluster Redis
 - cluster RabbitMQ
 - replicacion y failover de PostgreSQL
-- compensacion completa de sagas
+- motor de saga completo con orquestacion central, DLQ y politicas avanzadas de compensacion
 - backups programados
 - almacenamiento off-site
 - cifrado de backups
@@ -65,17 +66,17 @@ Mensaje central:
 - dashboards Grafana listos para plataforma y negocio
 - Alertmanager, notificaciones externas y gobierno operativo de alertas
 
-## 3. Objetivo tecnico de S22
+## 3. Objetivo tecnico de S31
 
-El objetivo de este segmento no fue rehacer la arquitectura ni reemplazar el flujo Maven existente. El objetivo fue completar la continuidad operativa local con cambios pequenos y revisables:
+El objetivo de este segmento no fue rehacer la arquitectura ni reemplazar el flujo Maven existente. El objetivo fue agregar una compensacion basica de saga con cambios pequenos y revisables:
 
-1. conservar `docker-compose.yml` como modo estandar de infraestructura
-2. conservar `docker-compose.apps.yml` como modo Compose adicional para aplicaciones
-3. mantener operativos los endpoints custom `GET /health`
-4. agregar una capa local de backup PostgreSQL con `pg_dump -Fc`
-5. agregar restore protegido con `-Force` y `pg_restore --clean --if-exists`
-6. dejar una verificacion simple de base y un runbook de recuperacion ante desastres
-7. mantener explicitos los limites entre recuperacion local academica y controles productivos reales
+1. preservar PostgreSQL centralizado y las APIs REST actuales
+2. preservar RabbitMQ como mecanismo asincrono de entrega entre servicios
+3. mantener S30 como mecanismo confiable de publicacion mediante `outbox_events`
+4. conservar que `billing-service` publique `BillingStatusChangedEvent` solo cuando cambia el estado
+5. agregar en `enrollment-service` una cola propia enlazada a `billing.status.changed`
+6. compensar transaccionalmente la inscripcion relacionada solo cuando el billing queda `CANCELLED`
+7. mantener explicitos los limites entre esta compensacion basica por choreografia y un motor de saga completo
 
 ## 4. Arquitectura operativa actual
 
@@ -99,7 +100,7 @@ Tabla de componentes:
 | --- | --- | --- |
 | `student-service` | Implementado | CRUD basico y modo contenedor disponible |
 | `course-service` | Implementado | Catalogo academico, cache Redis y modo contenedor |
-| `enrollment-service` | Implementado | Inscripciones, outbox transaccional, eventos RabbitMQ y modo contenedor |
+| `enrollment-service` | Implementado | Inscripciones, outbox transaccional, compensacion por `billing.status.changed` y modo contenedor |
 | `billing-service` | Implementado | Cobros, outbox transaccional, eventos RabbitMQ y modo contenedor |
 | `notification` | Implementado para evidencia | Consumidor RabbitMQ y modo contenedor |
 | `gateway-service` | Preparado, no operativo | No participa en la demo actual |
@@ -310,6 +311,11 @@ Flujo critico de negocio:
 
 `Inscripcion de estudiante a una seccion y generacion de cobro asociado`
 
+En S31, el flujo tambien incluye la compensacion:
+
+- si el billing pasa a `CANCELLED`, la inscripcion relacionada debe pasar a `CANCELLED`
+- si el billing pasa a `PAID` o se mantiene `PENDING`, no debe haber compensacion
+
 [Insertar evidencia E10 - Postman importado]
 [Insertar evidencia E11 - flujo funcional principal]
 
@@ -336,7 +342,7 @@ Lo que debe observarse:
 
 ## 13. RabbitMQ y notification
 
-RabbitMQ ya participa en el flujo de evidencia del repositorio y ahora queda endurecido por el outbox transaccional de los servicios productores.
+RabbitMQ ya participa en el flujo de evidencia del repositorio y ahora queda endurecido por el outbox transaccional de los servicios productores. S31 agrega un consumidor adicional en `enrollment-service` para la compensacion basica.
 
 UI:
 
@@ -356,6 +362,7 @@ Logs esperados:
 
 - en `enrollment-service`:
   - `Published EnrollmentCreatedEvent ...`
+  - `Processed billing cancellation compensation ...`
 - en `billing-service`:
   - `Published BillingStatusChangedEvent ...`
 - en `notification`:
@@ -363,6 +370,12 @@ Logs esperados:
   - `Billing status changed event received ...`
 
 Adicionalmente, la base debe mostrar filas en `outbox_events` con `service_name`, `event_type`, `routing_key`, `status`, `attempts`, `created_at` y `published_at`.
+
+Tambien debe existir:
+
+- la cola `enrollment.compensation.events`
+- un binding desde `campusenroll.events` hacia `enrollment.compensation.events` con routing key `billing.status.changed`
+- una fila de `enrollments` compensada a `CANCELLED` despues del billing cancelado
 
 [Insertar evidencia E13 - RabbitMQ bindings]
 [Insertar evidencia E14 - logs de publicacion y consumo]
@@ -519,10 +532,10 @@ Los siguientes puntos deben quedar expresados como pendientes, no como trabajo y
 
 ## 18. Conclusiones
 
-CampusEnroll HA ya puede presentarse como una solucion local `HA-ready` para la entrega: tiene infraestructura compartida endurecida, servicios de aplicacion contenedorizables, restart policies, healthchecks, cache Redis, outbox transaccional y eventos RabbitMQ, evidencia con Postman, validacion con k6, metricas Prometheus reales en los cinco microservicios y una capa local de backup/restore para PostgreSQL.
+CampusEnroll HA ya puede presentarse como una solucion local `HA-ready` para la entrega: tiene infraestructura compartida endurecida, servicios de aplicacion contenedorizables, restart policies, healthchecks, cache Redis, outbox transaccional y eventos RabbitMQ, compensacion basica por choreografia para billings cancelados, evidencia con Postman, validacion con k6, metricas Prometheus reales en los cinco microservicios y una capa local de backup/restore para PostgreSQL.
 
 La conclusion correcta no es "ya existe alta disponibilidad real". La conclusion correcta es:
 
-`la plataforma ya demuestra readiness local, recuperacion operativa basica, recuperacion manual de datos PostgreSQL y una postura de observabilidad mas fuerte para la entrega final, pero la alta disponibilidad productiva sigue siendo una mejora futura.`
+`la plataforma ya demuestra readiness local, recuperacion operativa basica, recuperacion manual de datos PostgreSQL, outbox transaccional y una compensacion basica por choreografia, pero la alta disponibilidad productiva y un motor de saga completo siguen siendo mejoras futuras.`
 
 [Insertar evidencia E23 - resumen final o cierre del PDF]

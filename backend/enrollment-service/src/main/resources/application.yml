@@ -18,7 +18,9 @@ spring:
 app:
   messaging:
     exchange: ${APP_EVENTS_EXCHANGE:campusenroll.events}
+    enrollment-compensation-queue: ${APP_ENROLLMENT_COMPENSATION_QUEUE:enrollment.compensation.events}
     enrollment-created-routing-key: ${APP_ENROLLMENT_CREATED_ROUTING_KEY:enrollment.created}
+    billing-status-changed-routing-key: ${APP_BILLING_STATUS_CHANGED_ROUTING_KEY:billing.status.changed}
   outbox:
     publisher:
       fixed-delay-ms: ${APP_OUTBOX_PUBLISHER_FIXED_DELAY_MS:5000}
